@@ -14,7 +14,7 @@ public class CameraController : MonoBehaviour
     private Plane horizontalPlane;
     private Vector3 lastWorldPosition = Vector3.zero;
 
-    [SerializeField] private MapSO mapSettings;
+    private MapSO mapSettings;
 
     // Zooming
     private float zoomDistance;
@@ -54,15 +54,6 @@ public class CameraController : MonoBehaviour
         zoomDistance = Vector3.Distance(target.position, transform.position);
     }
 
-    private void Start ()
-    {
-        target.position = new Vector3(mapSettings.mapDimension.x * 0.5f, 0f, mapSettings.mapDimension.y * 0.5f);
-        target.eulerAngles = Vector3.up * 180.0f;
-
-        //mapPlane = new Plane(new Vector3(0.0f, 0f, 0.0f), new Vector3(mapUnitDimension.x, 0f, 0.0f), new Vector3(mapUnitDimension.x, 0f, mapUnitDimension.y));
-        horizontalPlane = new Plane(Vector3.up, Vector3.zero);
-    }
-
     private void Update ()
     {
         transform.LookAt(target);
@@ -73,6 +64,17 @@ public class CameraController : MonoBehaviour
             Panning();
             Orbiting();
         }
+    }
+
+    public void SetMapData (MapSO mapData)
+    {
+        mapSettings = mapData;
+
+        target.position = new Vector3(mapSettings.mapDimension.x * 0.5f, 0f, mapSettings.mapDimension.y * 0.5f);
+        target.eulerAngles = Vector3.up * 180.0f;
+
+        //mapPlane = new Plane(new Vector3(0.0f, 0f, 0.0f), new Vector3(mapUnitDimension.x, 0f, 0.0f), new Vector3(mapUnitDimension.x, 0f, mapUnitDimension.y));
+        horizontalPlane = new Plane(Vector3.up, Vector3.zero);
     }
 
     private bool IsOverUI ()

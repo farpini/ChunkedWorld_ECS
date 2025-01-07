@@ -12,4 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96119a8e0c6b9c3468a67362452fdb20, type: 3}
   m_Name: Map256x256
   m_EditorClassIdentifier: 
-  mapDimension: {x: 256, y: 256}
+  mapDimension:
+    x: 256
+    y: 256
+  tileWidth: 1
+  borderingWidth: 2

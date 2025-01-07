@@ -1,10 +1,7 @@
-using System;
-using TreeEditor;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using static UnityEngine.Rendering.DebugUI;
 
 public class MeshTest : MonoBehaviour
 {
@@ -18,8 +15,8 @@ public class MeshTest : MonoBehaviour
 
     [SerializeField] private Mesh treeMesh;
 
-    private NativeHashMap<int, int> mapping;
-    private NativeHashMap<int, int> invMapping;
+    private NativeHashMap<int, int> mapping, mapping_Tree;
+    private NativeHashMap<int, int> invMapping, invMapping_Tree;
     private int maxChunkWidth = 64;
     private int floorTexture = 2;
     private int formVerticeCount = 4;
@@ -34,12 +31,12 @@ public class MeshTest : MonoBehaviour
     private VertexAttributeDescriptor[] modelsVertexLayout;
 
     //private float3[] treeVertices;
-    private ushort[] treeTriangles;
+    private uint[] treeIndexes;
     //private float3[] treeNormals;
     //private float4[] treeTangents;
     //private float2[] treeUVS;
 
-    private float[] treeVertex;
+    private float[] treeVertexes;
     private int treeVertexAttributesDimension;
     private int modelVertexCount;
     private int modelIndexCount;
@@ -50,6 +47,9 @@ public class MeshTest : MonoBehaviour
     {
         mapping = new NativeHashMap<int, int>(maxChunkWidth * maxChunkWidth, Allocator.Persistent);
         invMapping = new NativeHashMap<int, int>(maxChunkWidth * maxChunkWidth, Allocator.Persistent);
+
+        mapping_Tree = new NativeHashMap<int, int>(maxChunkWidth * maxChunkWidth, Allocator.Persistent);
+        invMapping_Tree = new NativeHashMap<int, int>(maxChunkWidth * maxChunkWidth, Allocator.Persistent);
 
         mapDimension = mapSettings.mapDimension;
 
@@ -82,18 +82,18 @@ public class MeshTest : MonoBehaviour
         var meshData = mesh[0];
         modelVertexCount = meshData.vertexCount;
         var vertexData = meshData.GetVertexData<float>();
-        treeVertex = new float[vertexData.Length];
-        for (int i = 0; i < treeVertex.Length; i++)
+        treeVertexes = new float[vertexData.Length];
+        for (int i = 0; i < treeVertexes.Length; i++)
         {
-            treeVertex[i] = vertexData[i];
+            treeVertexes[i] = vertexData[i];
         }
 
-        var indexData = meshData.GetIndexData<ushort>();
+        var indexData = meshData.GetIndexData<uint>();
         modelIndexCount = indexData.Length;
-        treeTriangles = new ushort[modelIndexCount];
-        for (int i = 0; i < treeTriangles.Length; i++)
+        treeIndexes = new uint[modelIndexCount];
+        for (int i = 0; i < treeIndexes.Length; i++)
         {
-            treeTriangles[i] = indexData[i];
+            treeIndexes[i] = indexData[i];
         }
 
         mesh.Dispose();
@@ -103,6 +103,9 @@ public class MeshTest : MonoBehaviour
     {
         mapping.Dispose();
         invMapping.Dispose();
+
+        mapping_Tree.Dispose();
+        invMapping_Tree.Dispose();
     }
 
     private int GetTileIndexFromTilePosition (int2 tilePosition)
@@ -140,7 +143,7 @@ public class MeshTest : MonoBehaviour
         {
             var newModelAmount = rect.size.x * rect.size.y;
 
-            var currentModelCount = mapping.Count;
+            var currentModelCount = mapping_Tree.Count;
 
             var currentVertexCount = currentModelCount * modelVertexCount;
             var currentIndexCount = currentModelCount * modelIndexCount;
@@ -150,22 +153,27 @@ public class MeshTest : MonoBehaviour
 
             if (newIndexCount >= 65535)
             {
-                Debug.LogWarning("Index count exceeds 65535");
-                return;
+                Debug.LogWarning("Index count exceeds 65535 : " + newIndexCount);
+                //return;
             }
+
+            var halfTileWidth = mapSettings.tileWidth * 0.5f;
 
             var mesh = Mesh.AllocateWritableMeshData(treeMeshFilter.mesh);
             var meshData = mesh[0];
 
             meshData.SetVertexBufferParams(newVertexCount, modelsVertexLayout);
-            meshData.SetIndexBufferParams(newIndexCount, IndexFormat.UInt16);
+            meshData.SetIndexBufferParams(newIndexCount, IndexFormat.UInt32);
 
             var verticeArray = meshData.GetVertexData<float>();
-            var indexArray = meshData.GetIndexData<ushort>();
+            var indexArray = meshData.GetIndexData<uint>();
 
-            var vIndex = currentModelCount * modelVertexCount;
+            var vIndex = currentModelCount * modelVertexCount * treeVertexAttributesDimension;
             var tIndex = currentIndexCount;
-            var tValue = (ushort)currentVertexCount;
+            var tValue = (uint)currentVertexCount;
+
+            //Debug.Log("currentModelCount: " + currentModelCount + " currentIndexCount: " + 
+            //    currentIndexCount + " tIndex: " + tIndex + " tValue: " + tValue + " vIndex: " + vIndex);
 
             var modelsCreated = 0;
 
@@ -176,70 +184,162 @@ public class MeshTest : MonoBehaviour
                     var modelPosition = new int2(rect.position.x + i, rect.position.y + j);
                     var modelIndex = GetTileIndexFromTilePosition(modelPosition);
 
-                    var modelWorldPosition = new float3(modelPosition.x, 0f, modelPosition.y);
+                    var modelWorldPosition = new float3(modelPosition.x + halfTileWidth, 0f, modelPosition.y + halfTileWidth);
 
-                    if (!mapping.TryGetValue(modelIndex, out var modelId))
+                    if (!mapping_Tree.TryGetValue(modelIndex, out var modelId))
                     {
-                        for (int v = 0; v < modelVertexCount; v++)
+                        for (int v = 0, vIdx = 0; v < modelVertexCount; v++)
                         {
                             // Position
-                            verticeArray[vIndex] = treeVertex[vIndex++] + modelWorldPosition.x;
-                            verticeArray[vIndex] = treeVertex[vIndex++] + modelWorldPosition.y;
-                            verticeArray[vIndex] = treeVertex[vIndex++] + modelWorldPosition.z;
+                            verticeArray[vIndex++] = treeVertexes[vIdx++] + modelWorldPosition.x;
+                            verticeArray[vIndex++] = treeVertexes[vIdx++] + modelWorldPosition.y;
+                            verticeArray[vIndex++] = treeVertexes[vIdx++] + modelWorldPosition.z;
 
                             // Normal
-                            verticeArray[vIndex] = treeVertex[vIndex++];
-                            verticeArray[vIndex] = treeVertex[vIndex++];
-                            verticeArray[vIndex] = treeVertex[vIndex++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
 
                             // Tangent
-                            verticeArray[vIndex] = treeVertex[vIndex++];
-                            verticeArray[vIndex] = treeVertex[vIndex++];
-                            verticeArray[vIndex] = treeVertex[vIndex++];
-                            verticeArray[vIndex] = treeVertex[vIndex++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
 
                             // UV
-                            verticeArray[vIndex] = treeVertex[vIndex++];
-                            verticeArray[vIndex] = treeVertex[vIndex++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
+                            verticeArray[vIndex++] = treeVertexes[vIdx++];
                         }
 
-                        indexArray[tIndex++] = tValue;
-                        indexArray[tIndex++] = (ushort)(tValue + 2);
-                        indexArray[tIndex++] = (ushort)(tValue + 1);
+                        //Debug.LogWarning(vIndex);
 
-                        tValue += 3;
+                        for (int t = 0; t < modelIndexCount; t++)
+                        {
+                            indexArray[tIndex++] = treeIndexes[t] + tValue;
+                        }
 
-                        mapping.Add(modelIndex, currentModelCount + modelsCreated);
-                        invMapping.Add(currentModelCount + modelsCreated, modelIndex);
+                        //Debug.LogWarning(tIndex);
+
+                        tValue += (uint)modelVertexCount;
+
+                        mapping_Tree.Add(modelIndex, currentModelCount + modelsCreated);
+                        invMapping_Tree.Add(currentModelCount + modelsCreated, modelIndex);
 
                         modelsCreated++;
                     }
                 }
             }
 
-            newVertexCount = currentVertexCount + (newModelAmount * modelVertexCount);
-            newIndexCount = currentIndexCount + (newModelAmount * modelIndexCount);
+            newVertexCount = currentVertexCount + (modelsCreated * modelVertexCount);
+            newIndexCount = currentIndexCount + (modelsCreated * modelIndexCount);
 
+            meshData.SetVertexBufferParams(newVertexCount, modelsVertexLayout);
+            meshData.SetIndexBufferParams(newIndexCount, IndexFormat.UInt32);
 
-            /*
-            int modelCount = mapping.Count;
-            int indexCount = modelCount * formTriangleCount;
+            meshData.subMeshCount = 1;
+            meshData.SetSubMesh(0, new SubMeshDescriptor(0, newIndexCount)); // check here the value
 
-            int newModelVertexAmount = treeVertex.Length * newModelAmount;
-            int newModelIndexAmount = treeTriangles.Length * newModelAmount;
+            Mesh.ApplyAndDisposeWritableMeshData(mesh, treeMeshFilter.mesh, MeshUpdateFlags.Default);
 
-            //Debug.LogWarning(newModelVertexAmount);
+            treeMeshFilter.mesh.RecalculateNormals();
+            treeMeshFilter.mesh.RecalculateBounds();
+            treeMeshFilter.mesh.RecalculateTangents();
 
-            meshData.SetVertexBufferParams(newModelVertexAmount, modelsVertexLayout);
-            meshData.SetIndexBufferParams(newModelIndexAmount, IndexFormat.UInt32);
+            return;
+        }
 
+        if (Input.GetKeyDown(KeyCode.J))
+        {
+            var currentModelCount = mapping_Tree.Count;
 
+            var currentVertexCount = currentModelCount * modelVertexCount;
+            var currentIndexCount = currentModelCount * modelIndexCount;
 
-            */
+            var mesh = Mesh.AllocateWritableMeshData(treeMeshFilter.mesh);
+            var meshData = mesh[0];
 
+            var verticeArray = meshData.GetVertexData<float>();
 
+            var modelsRemoved = 0;
 
-            mesh.Dispose();
+            for (int i = 0; i < rect.size.x; i++)
+            {
+                for (int j = 0; j < rect.size.y; j++)
+                {
+                    var modelPosition = new int2(rect.position.x + i, rect.position.y + j);
+                    var modelIndex = GetTileIndexFromTilePosition(modelPosition);
+
+                    var lastModelId = mapping_Tree.Count - 1;
+
+                    if (mapping_Tree.TryGetValue(modelIndex, out var modelId))
+                    {
+                        //var vIndex = modelId * vertexLayout.Length * formVerticeCount;
+                        var vIndex = modelId * modelVertexCount * treeVertexAttributesDimension;
+
+                        if (!invMapping_Tree.TryGetValue(lastModelId, out var lastModelIndex))
+                        {
+                            Debug.Log("NOOOOOOOOOO");
+                        }
+
+                        //var vLastIndex = lastModelId * vertexLayout.Length * formVerticeCount;
+                        var vLastIndex = lastModelId * modelVertexCount * treeVertexAttributesDimension;
+
+                        mapping_Tree.Remove(modelIndex);
+                        invMapping_Tree.Remove(modelId);
+
+                        if (modelId != lastModelId)
+                        {
+                            for (int v = 0; v < modelVertexCount; v++)
+                            {
+                                // Position
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+
+                                // Normal
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+
+                                // Tangent
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+
+                                // UV
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                                verticeArray[vIndex++] = verticeArray[vLastIndex++];
+                            }
+
+                            mapping_Tree[lastModelIndex] = modelId;
+
+                            invMapping_Tree.Remove(lastModelId);
+                            invMapping_Tree.Add(modelId, lastModelIndex);
+                        }
+
+                        modelsRemoved++;
+                    }
+                    else
+                    {
+                        Debug.Log("NOOOOOOOOOO");
+                    }
+                }
+            }
+
+            var newVertexCount = currentVertexCount - (modelsRemoved * modelVertexCount);
+            var newIndexCount = currentIndexCount - (modelsRemoved * modelIndexCount);
+
+            meshData.SetVertexBufferParams(newVertexCount, modelsVertexLayout);
+            meshData.SetIndexBufferParams(newIndexCount, IndexFormat.UInt32);
+
+            meshData.subMeshCount = 1;
+            meshData.SetSubMesh(0, new SubMeshDescriptor(0, newIndexCount)); // check here the value
+
+            Mesh.ApplyAndDisposeWritableMeshData(mesh, treeMeshFilter.mesh, MeshUpdateFlags.Default);
+
+            treeMeshFilter.mesh.RecalculateNormals();
+            treeMeshFilter.mesh.RecalculateBounds();
         }
     }
 

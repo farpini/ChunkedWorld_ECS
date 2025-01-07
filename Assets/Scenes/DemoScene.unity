@@ -973,8 +973,8 @@ MonoBehaviour:
   rect:
     x: 2
     y: 2
-    width: 4
-    height: 4
+    width: 1
+    height: 1
   treeMesh: {fileID: -8081317734454312985, guid: 3849548e83215f343b11983b1998c4ad, type: 3}
 --- !u!23 &1810709923
 MeshRenderer:

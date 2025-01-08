@@ -51,7 +51,7 @@ public class MeshTest : MonoBehaviour
         mapping_Tree = new NativeHashMap<int, int>(maxChunkWidth * maxChunkWidth, Allocator.Persistent);
         invMapping_Tree = new NativeHashMap<int, int>(maxChunkWidth * maxChunkWidth, Allocator.Persistent);
 
-        mapDimension = mapSettings.mapDimension;
+        mapDimension = mapSettings.MapDimension;
 
         formVertices = new float3[]
         {
@@ -157,7 +157,7 @@ public class MeshTest : MonoBehaviour
                 //return;
             }
 
-            var halfTileWidth = mapSettings.tileWidth * 0.5f;
+            var halfTileWidth = mapSettings.TileWidth * 0.5f;
 
             var mesh = Mesh.AllocateWritableMeshData(treeMeshFilter.mesh);
             var meshData = mesh[0];
@@ -467,7 +467,7 @@ public class MeshTest : MonoBehaviour
         // REMOVE FORMS
         if (Input.GetKeyDown(KeyCode.G))
         {
-            //var newModelAmount = rect.size.x * rect.size.y;
+            //var newModelAmount = Rect.size.x * Rect.size.y;
 
             var mesh = Mesh.AllocateWritableMeshData(meshFilter.mesh);
             var meshData = mesh[0];

@@ -163,6 +163,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df9c46844f9134c45a005f3358604ba2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  modelRendererPrefab: {fileID: 5019324388885201569, guid: 61bc657fac74eef409c023ea44bf6406, type: 3}
   modelArray:
   - {fileID: 4315571438870259406, guid: 2f80adeaec45fcc4db5bd35abef53f58, type: 3}
   - {fileID: 4315571438870259406, guid: 8185ad99fd5ef5247803bdaa3498ae41, type: 3}

@@ -15,5 +15,6 @@ MonoBehaviour:
   mapDimension:
     x: 256
     y: 256
-  tileWidth: 1
+  tileWidth: 4
   borderingWidth: 2
+  chunkWidth: 32

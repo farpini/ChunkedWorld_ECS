@@ -4,16 +4,25 @@ using UnityEngine;
 
 public class Map : MonoBehaviour
 {
-    [SerializeField] private MapSO mapData;
     [SerializeField] private Transform groundTransform;
     [SerializeField] private MeshFilter gridTileMesh;
     [SerializeField] private CameraController cameraController;
 
-    private void Awake ()
-    {
-        float mapExtend = mapData.borderingWidth * mapData.tileWidth;
+    private MapSO mapData;
 
-        float2 unitDimension = new float2(mapData.tileWidth * mapData.mapDimension.x, mapData.tileWidth * mapData.mapDimension.y);
+    public void Initialize (MapSO map)
+    {
+        if (!map.Validate)
+        {
+            Debug.LogWarning("MapSO is not a valid map settings. Use other map input data.");
+            return;
+        }
+
+        mapData = map;
+
+        float mapExtend = mapData.BorderingWidth * mapData.TileWidth;
+
+        float2 unitDimension = mapData.MapUnitDimension;
 
         Vector2 mapSize = new float2(unitDimension.x + (mapExtend * 2f), unitDimension.y + (mapExtend * 2f));
 
@@ -23,11 +32,8 @@ public class Map : MonoBehaviour
         groundTransform.localScale = new Vector3(10f, 5f, 10f);
         groundTransform.localPosition = new Vector3(0f, -2.51f, 0f);
 
-        CreateTileGrid(int3.zero, unitDimension, mapData.tileWidth);
-    }
+        CreateTileGrid(int3.zero, unitDimension, mapData.TileWidth);
 
-    private void Start ()
-    {
         cameraController.SetMapData(mapData);
     }
 

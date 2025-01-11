@@ -2,14 +2,35 @@ using System;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 using UnityEngine.Rendering;
 
 public struct ControllerComponent : IComponentData
 {
     public ControllerState State;
     public int4 Rect;
+    public int ModelCount;
     public int ModelSelectedId;
     public int FloorSelectedTextureId;
+}
+
+[InternalBufferCapacity(64)]
+public struct RectChunkEntityBuffer : IBufferElementData
+{
+    public static implicit operator RectChunkData (RectChunkEntityBuffer e) { return e.Value; }
+    public static implicit operator RectChunkEntityBuffer (RectChunkData e) { return new RectChunkEntityBuffer { Value = e }; }
+
+    public RectChunkData Value;
+}
+
+public struct RectChunkData
+{
+    public int2 chunkPosition;
+    public int4 chunkRect;
+}
+
+public struct TerrainComponent : IComponentData
+{
 }
 
 public struct MapComponent : IComponentData
@@ -37,14 +58,49 @@ public struct MapComponent : IComponentData
     }
 }
 
+public struct MapTileComponent : IComponentData, IDisposable
+{
+    public NativeArray<int3> TileData;
+
+    public void Dispose ()
+    {
+        if (TileData.IsCreated) TileData.Dispose();
+    }
+}
+
+public enum TileTerrainType
+{
+    Flat = 0,
+    Saddle_0 = 1,
+    Saddle_1 = 2,
+    Ramp_0 = 3,
+    Ramp_1 = 4,
+    Ramp_2 = 5,
+    Ramp_3 = 6,
+    H1_0 = 7,
+    H1_1 = 8,
+    H1_2 = 9,
+    H1_3 = 10,
+    H3_0 = 11,
+    H3_1 = 12,
+    H3_2 = 13,
+    H3_3 = 14,
+    Steep_0 = 15,
+    Steep_1 = 16,
+    Steep_2 = 17,
+    Steep_3 = 18
+}
+
 public enum ControllerState
 {
-    None, CreateModel, RemoveModel, CreateFloor, RemoveFloor
+    None, CreateModel, RemoveModel, CreateWater
 }
 
 public struct RendererPrefabEntities : IComponentData
 {
-    public Entity modelRenderer;
+    public Entity chunkModelRenderer;
+    public Entity chunkTileRenderer;
+    public Entity tilePrefab;
 }
 
 public struct ModelDataEntityBuffer : IBufferElementData
@@ -56,10 +112,10 @@ public struct ModelDataEntityBuffer : IBufferElementData
 }
 
 [InternalBufferCapacity(64)]
-public struct ModelChunkEntityBuffer : IBufferElementData
+public struct ChunkRendererEntityBuffer : IBufferElementData
 {
-    public static implicit operator Entity (ModelChunkEntityBuffer e) { return e.Value; }
-    public static implicit operator ModelChunkEntityBuffer (Entity e) { return new ModelChunkEntityBuffer { Value = e }; }
+    public static implicit operator Entity (ChunkRendererEntityBuffer e) { return e.Value; }
+    public static implicit operator ChunkRendererEntityBuffer (Entity e) { return new ChunkRendererEntityBuffer { Value = e }; }
 
     public Entity Value;
 }
@@ -84,18 +140,27 @@ public struct ModelDataComponent : IComponentData
     public int modelId;
 }
 
-public struct MeshDataComponent : IComponentData
+public struct MeshBlobInfoComponent : ISharedComponentData
 {
-    public BlobAssetReference<MeshBlobData> meshDataBlob;
+    public BlobAssetReference<MeshBlobInfo> meshInfoBlob;
     public int vertexCount;
     public int indexCount;
     public int vertexAttributeDimension;
 }
 
-public struct MeshBlobData
+public struct MeshBlobInfo
 {
     public BlobArray<char> meshName;
     public BlobArray<VertexAttributeDescriptor> attributes;
-    public BlobArray<float> vertexes;
+}
+
+public struct MeshBlobDataComponent : ISharedComponentData
+{
+    public BlobAssetReference<MeshBlobData> meshDataBlob;
+}
+
+public struct MeshBlobData
+{
+    public BlobArray<float3> vertexes;
     public BlobArray<uint> indexes;
 }

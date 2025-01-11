@@ -278,7 +278,7 @@ public class MeshTest : MonoBehaviour
 
                         if (!invMapping_Tree.TryGetValue(lastModelId, out var lastModelIndex))
                         {
-                            Debug.Log("NOOOOOOOOOO");
+                            Debug.LogError("NOOOOOOOOOO");
                         }
 
                         //var vLastIndex = lastModelId * vertexLayout.Length * formVerticeCount;

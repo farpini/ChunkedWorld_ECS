@@ -14,11 +14,14 @@ public class MainController : MonoBehaviour
     [SerializeField] private RectView rectView;
     [SerializeField] private TMP_Dropdown modelDropDown;
     [SerializeField] private Button modelCreateButton;
+    [SerializeField] private Button modelRemoveButton;
+    [SerializeField] private Button createWaterButton;
 
     [SerializeField] private State state;
     [SerializeField] private Vector2 worldPosition;
     [SerializeField] private Vector2Int tilePosition;
 
+    private int modelCount;
     private int currentModelSelectedId;
 
     private Ray ray;
@@ -37,6 +40,7 @@ public class MainController : MonoBehaviour
     private void Awake ()
     {
         state = State.None;
+        modelCount = 0;
         currentModelSelectedId = -1;
         rectView.Show(false);
 
@@ -52,6 +56,8 @@ public class MainController : MonoBehaviour
         INVALID_INT2 = new Vector2Int(-1, -1);
 
         modelCreateButton.onClick.AddListener(() => OnModelCreateButtonClicked());
+        modelRemoveButton.onClick.AddListener(() => OnModelRemoveButtonClicked());
+        createWaterButton.onClick.AddListener(() => OnCreateWaterButtonClicked());
         modelDropDown.onValueChanged.AddListener((int v) => OnModelSelectionChanged(v));
     }
 
@@ -63,13 +69,21 @@ public class MainController : MonoBehaviour
 
         //meshChunkArchetype = entityManager.CreateArchetype(typeof(MeshChunkData));
 
+        var modelDataEntityQuery = entityManager.CreateEntityQuery(typeof(ModelDataEntityBuffer));
+        var modelDataEntityBuffer = modelDataEntityQuery.GetSingletonBuffer<ModelDataEntityBuffer>();
+        modelCount = modelDataEntityBuffer.Length;
+
         CreateControllerEntity();
-        UI_LoadModels();
+        UI_LoadModels(modelDataEntityBuffer);
+
+        modelDataEntityQuery.Dispose();
     }
 
     private void OnDestroy ()
     {
         modelCreateButton.onClick.RemoveAllListeners();
+        modelRemoveButton.onClick.RemoveAllListeners();
+        createWaterButton.onClick.RemoveAllListeners();
         modelDropDown.onValueChanged.RemoveAllListeners();
     }
 
@@ -81,14 +95,21 @@ public class MainController : MonoBehaviour
 
     private void CreateControllerEntity ()
     {
-        controllerEntity = entityManager.CreateEntity(typeof(ControllerComponent), typeof(MapComponent));
+        controllerEntity = entityManager.CreateEntity(
+            typeof(ControllerComponent), 
+            typeof(MapComponent), 
+            typeof(MapTileComponent), 
+            typeof(RectChunkEntityBuffer));
+
         entityManager.SetComponentData(controllerEntity, new ControllerComponent
         {
             State = ControllerState.None,
             Rect = int4.zero,
+            ModelCount = modelCount,
             ModelSelectedId = 0,
             FloorSelectedTextureId = 0
         });
+
         entityManager.SetComponentData(controllerEntity, new MapComponent
         {
             TileDimension = mapData.MapDimension,
@@ -96,6 +117,13 @@ public class MainController : MonoBehaviour
             ChunkDimension = mapData.ChunkDimension,
             ChunkWidth = mapData.ChunkWidth
         });
+
+        entityManager.SetComponentData(controllerEntity, new MapTileComponent
+        {
+            TileData = new NativeArray<int3>(mapData.MapDimension.x * mapData.MapDimension.y, Allocator.Persistent)
+        });
+
+        entityManager.SetName(controllerEntity, "ControllerEntity");
     }
 
     private void GetWorldPositions ()
@@ -152,7 +180,7 @@ public class MainController : MonoBehaviour
         {
             if (!EventSystem.current.IsPointerOverGameObject())
             {
-                if (state == State.CreatingModel)
+                if (state != State.None)
                 {
                     isDragging = true;
                     startDragTilePosition = tilePosition;
@@ -171,6 +199,29 @@ public class MainController : MonoBehaviour
                     {
                         State = ControllerState.CreateModel,
                         Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
+                        ModelCount = modelCount,
+                        ModelSelectedId = currentModelSelectedId,
+                        FloorSelectedTextureId = 0
+                    });
+                }
+                else if (state == State.RemovingModel)
+                {
+                    entityManager.SetComponentData(controllerEntity, new ControllerComponent
+                    {
+                        State = ControllerState.RemoveModel,
+                        Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
+                        ModelCount = modelCount,
+                        ModelSelectedId = currentModelSelectedId,
+                        FloorSelectedTextureId = 0
+                    });
+                }
+                else if (state == State.CreatingWater)
+                {
+                    entityManager.SetComponentData(controllerEntity, new ControllerComponent
+                    {
+                        State = ControllerState.CreateWater,
+                        Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
+                        ModelCount = modelCount,
                         ModelSelectedId = currentModelSelectedId,
                         FloorSelectedTextureId = 0
                     });
@@ -181,7 +232,7 @@ public class MainController : MonoBehaviour
 
     private void OnTilePositionChanged (bool tilePositionValid)
     {
-        if (state == State.CreatingModel)
+        if (state != State.None)
         {
             if (isDragging)
             {
@@ -235,6 +286,22 @@ public class MainController : MonoBehaviour
         rectView.Show(true);
     }
 
+    private void OnModelRemoveButtonClicked ()
+    {
+        CancelCreation();
+
+        state = State.RemovingModel;
+        rectView.Show(true);
+    }
+
+    private void OnCreateWaterButtonClicked ()
+    {
+        CancelCreation();
+
+        state = State.CreatingWater;
+        rectView.Show(true);
+    }
+
     private void OnModelSelectionChanged (int modelSelected)
     {
         CancelCreation();
@@ -248,20 +315,16 @@ public class MainController : MonoBehaviour
         rectView.Show(false);
     }
 
-    private void UI_LoadModels ()
+    private void UI_LoadModels (DynamicBuffer<ModelDataEntityBuffer> modelDataEntityBuffer)
     {
-        var modelDataEntityQuery = entityManager.CreateEntityQuery(typeof(ModelDataEntityBuffer));
-
-        var modelDataEntityBuffer = modelDataEntityQuery.GetSingletonBuffer<ModelDataEntityBuffer>();
-
         var dropDownOptions = new System.Collections.Generic.List<string>();
 
         for (int i = 0; i < modelDataEntityBuffer.Length; i++)
         {
             var modelEntity = modelDataEntityBuffer[i].Value;
 
-            var modelBlobDataComponent = entityManager.GetComponentData<MeshDataComponent>(modelEntity);
-            var modelName = modelBlobDataComponent.meshDataBlob.Value.meshName.BlobCharToString();
+            var modelBlobInfoComponent = entityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(modelEntity);
+            var modelName = modelBlobInfoComponent.meshInfoBlob.Value.meshName.BlobCharToString();
 
             dropDownOptions.Add(modelName);
         }
@@ -272,12 +335,10 @@ public class MainController : MonoBehaviour
         {
             currentModelSelectedId = 0;
         }
-
-        modelDataEntityQuery.Dispose();
     }
 }
 
 public enum State
 {
-    None, CreatingModel
+    None, CreatingModel, RemovingModel, CreatingWater
 }

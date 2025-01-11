@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96119a8e0c6b9c3468a67362452fdb20, type: 3}
+  m_Name: Map1024x1024
+  m_EditorClassIdentifier: 
+  mapDimension:
+    x: 1024
+    y: 1024
+  tileWidth: 4
+  borderingWidth: 2
+  chunkWidth: 32

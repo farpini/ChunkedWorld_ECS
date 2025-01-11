@@ -163,10 +163,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df9c46844f9134c45a005f3358604ba2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  modelRendererPrefab: {fileID: 5019324388885201569, guid: 61bc657fac74eef409c023ea44bf6406, type: 3}
+  chunkModelRendererPrefab: {fileID: 5019324388885201569, guid: 61bc657fac74eef409c023ea44bf6406, type: 3}
+  chunkTileRendererPrefab: {fileID: 5019324388885201569, guid: ad2851c2da57584488f67166969188a0, type: 3}
+  tilePrefab: {fileID: 107594132907127703, guid: 5e08615aa8e0c4e4aa749260dc3f303c, type: 3}
   modelArray:
   - {fileID: 4315571438870259406, guid: 2f80adeaec45fcc4db5bd35abef53f58, type: 3}
   - {fileID: 4315571438870259406, guid: 8185ad99fd5ef5247803bdaa3498ae41, type: 3}
+  - {fileID: 4315571438870259406, guid: 1f1d1c90ad602324aa3e709bf3e3309e, type: 3}
+  - {fileID: 4315571438870259406, guid: 660ca5f68edcda043a349ff34e5c6b8b, type: 3}
+  - {fileID: 4315571438870259406, guid: 634c29af89a65d24c9d62f98633fe1f4, type: 3}
+  - {fileID: 4315571438870259406, guid: 6ffea03a241aeca44873609041793d21, type: 3}
+  - {fileID: 4315571438870259406, guid: bc25d5d082b056349a7ee3bbd40ed49d, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

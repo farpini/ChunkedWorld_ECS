@@ -1,4 +1,6 @@
+using BlobHashMaps;
 using System;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -8,10 +10,19 @@ using UnityEngine.Rendering;
 public struct ControllerComponent : IComponentData
 {
     public ControllerState State;
+    public bool OnRectSelecting;
     public int4 Rect;
     public int ModelCount;
     public int ModelSelectedId;
     public int FloorSelectedTextureId;
+    public int2 StartTile;
+    public float MapMagnification;
+    public float2 MapOffset;
+}
+
+public class RectGameObject : IComponentData
+{
+    public RectView RectView;
 }
 
 [InternalBufferCapacity(64)]
@@ -39,6 +50,7 @@ public struct MapComponent : IComponentData
     public int TileWidth;
     public int2 ChunkDimension;
     public int ChunkWidth;
+    public int MaxHeight;
 
     public float HalfTileWidth => TileWidth * 0.5f;
 
@@ -56,16 +68,36 @@ public struct MapComponent : IComponentData
     {
         return chunkPosition.x * ChunkDimension.y + chunkPosition.y;
     }
+
+    public bool IsTileIndexValid (int tileIndex)
+    {
+        return tileIndex >= 0 && (tileIndex < (TileDimension.x * TileDimension.y));
+    }
+
+    public int GetHeigthMapIndexFromHeightMapPosition (int2 heighMapPosition)
+    {
+        return heighMapPosition.x * (TileDimension.y + 1) + heighMapPosition.y;
+    }
 }
 
 public struct MapTileComponent : IComponentData, IDisposable
 {
-    public NativeArray<int3> TileData;
+    public NativeArray<TileData> TileData;
+    public NativeArray<int> TileHeightMap;
 
     public void Dispose ()
     {
         if (TileData.IsCreated) TileData.Dispose();
+        if (TileHeightMap.IsCreated) TileHeightMap.Dispose();
     }
+}
+
+public struct TileData
+{
+    public int terrainType;
+    public int modelType;
+    public int terrainLevel;
+    public float terrainHeight;
 }
 
 public enum TileTerrainType
@@ -93,7 +125,7 @@ public enum TileTerrainType
 
 public enum ControllerState
 {
-    None, CreateModel, RemoveModel, CreateWater
+    None, CreateModel, RemoveModel, LowerTerrain, RaiseTerrain, LevelTerrain, GenerateTerrain
 }
 
 public struct RendererPrefabEntities : IComponentData
@@ -163,4 +195,21 @@ public struct MeshBlobData
 {
     public BlobArray<float3> vertexes;
     public BlobArray<uint> indexes;
+}
+
+public struct MeshBlobTileTerrainMappingComponent : ISharedComponentData
+{
+    public BlobAssetReference<BlobHashMap<int4, int>> mapping;
+}
+
+
+public struct TerrainHeightMapSettings
+{
+    public float noiseScale;
+    public float frequency;
+    public float lacunarity;
+    public int octaves;
+    public float weight;
+    public float falloffSteepness;
+    public float falloffOffset;
 }

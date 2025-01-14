@@ -18,3 +18,4 @@ MonoBehaviour:
   tileWidth: 4
   borderingWidth: 2
   chunkWidth: 32
+  maxHeight: 4

@@ -40,7 +40,12 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
     {
         var controllerData = SystemAPI.GetSingletonRW<ControllerComponent>();
 
-        if (controllerData.ValueRO.State != ControllerState.CreateModel && controllerData.ValueRO.State != ControllerState.RemoveModel)
+        if (controllerData.ValueRO.OnRectSelecting)
+        {
+            return;
+        }
+
+        if (controllerData.ValueRO.State == ControllerState.None)
         {
             return;
         }
@@ -61,7 +66,9 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
 
             chunkRendererIndexesToInstantiate.Clear();
 
-            var createRectangle = new Rectangle(rect.x, rect.y, rect.z, rect.w);
+            var createRectangle = (controllerData.ValueRO.State == ControllerState.CreateModel || controllerData.ValueRO.State == ControllerState.RemoveModel) ?
+                new Rectangle(rect.x, rect.y, rect.z, rect.w) : new Rectangle(rect.x - 1, rect.y - 1, rect.z + 2, rect.w + 2);
+
             for (int i = 0; i < mapComponent.ChunkDimension.x; i++)
             {
                 for (int j = 0; j < mapComponent.ChunkDimension.y; j++)
@@ -98,7 +105,11 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
                 }
             }
 
-            InstantiateChunkRenderers(ref state, modelEntity, modelId);
+            if (controllerData.ValueRO.State == ControllerState.CreateModel || controllerData.ValueRO.State == ControllerState.RemoveModel)
+            {
+                InstantiateChunkRenderers(ref state, modelEntity, modelId);
+                chunkRendererIndexesToInstantiate.Clear();
+            }
         }
     }
 
@@ -146,7 +157,5 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
         }
 
         ecb.Playback(state.EntityManager);
-
-        chunkRendererIndexesToInstantiate.Clear();
     }
 }

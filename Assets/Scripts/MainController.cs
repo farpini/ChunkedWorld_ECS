@@ -5,7 +5,6 @@ using UnityEngine;
 using Unity.Mathematics;
 using TMPro;
 using UnityEngine.UI;
-using UnityEngine.EventSystems;
 
 public class MainController : MonoBehaviour
 {
@@ -15,23 +14,15 @@ public class MainController : MonoBehaviour
     [SerializeField] private TMP_Dropdown modelDropDown;
     [SerializeField] private Button modelCreateButton;
     [SerializeField] private Button modelRemoveButton;
-    [SerializeField] private Button createWaterButton;
+    [SerializeField] private Button generateTerrainButton;
+    [SerializeField] private Button lowerTerrainButton;
+    [SerializeField] private float mapMagnification;
+    [SerializeField] private float2 mapOffset;
 
-    [SerializeField] private State state;
-    [SerializeField] private Vector2 worldPosition;
-    [SerializeField] private Vector2Int tilePosition;
+    [SerializeField] private ControllerState state;
 
     private int modelCount;
     private int currentModelSelectedId;
-
-    private Ray ray;
-    private Plane mapPlane;
-    private Vector2 INVALID_FLOAT2;
-    private Vector2Int INVALID_INT2;
-    private Vector2Int startDragTilePosition;
-    private RectInt rect;
-    private bool isDragging;
-    private bool isModelEditValid;
 
     private EntityManager entityManager;
     //private EntityArchetype meshChunkArchetype;
@@ -39,25 +30,15 @@ public class MainController : MonoBehaviour
 
     private void Awake ()
     {
-        state = State.None;
+        state = ControllerState.None;
         modelCount = 0;
         currentModelSelectedId = -1;
         rectView.Show(false);
 
-        mapPlane = new Plane(Vector3.up, Vector3.zero);
-        worldPosition = Vector2.zero;
-        tilePosition = Vector2Int.zero;
-        startDragTilePosition = Vector2Int.zero;
-        rect = new RectInt(Vector2Int.zero, Vector2Int.zero);
-        isDragging = false;
-        isModelEditValid = false;
-
-        INVALID_FLOAT2 = new Vector2(-1f, -1f);
-        INVALID_INT2 = new Vector2Int(-1, -1);
-
         modelCreateButton.onClick.AddListener(() => OnModelCreateButtonClicked());
         modelRemoveButton.onClick.AddListener(() => OnModelRemoveButtonClicked());
-        createWaterButton.onClick.AddListener(() => OnCreateWaterButtonClicked());
+        generateTerrainButton.onClick.AddListener(() => OnGenerateTerrainButtonClicked());
+        lowerTerrainButton.onClick.AddListener(() => OnTerrainLowerButtonClicked());
         modelDropDown.onValueChanged.AddListener((int v) => OnModelSelectionChanged(v));
     }
 
@@ -83,14 +64,17 @@ public class MainController : MonoBehaviour
     {
         modelCreateButton.onClick.RemoveAllListeners();
         modelRemoveButton.onClick.RemoveAllListeners();
-        createWaterButton.onClick.RemoveAllListeners();
+        generateTerrainButton.onClick.RemoveAllListeners();
+        lowerTerrainButton.onClick.RemoveAllListeners();
         modelDropDown.onValueChanged.RemoveAllListeners();
     }
 
     private void Update ()
     {
-        GetWorldPositions();
-        CheckInputs();
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            CancelCreation();
+        }
     }
 
     private void CreateControllerEntity ()
@@ -99,15 +83,20 @@ public class MainController : MonoBehaviour
             typeof(ControllerComponent), 
             typeof(MapComponent), 
             typeof(MapTileComponent), 
-            typeof(RectChunkEntityBuffer));
+            typeof(RectChunkEntityBuffer),
+            typeof(RectGameObject));
 
         entityManager.SetComponentData(controllerEntity, new ControllerComponent
         {
             State = ControllerState.None,
+            OnRectSelecting = false,
             Rect = int4.zero,
             ModelCount = modelCount,
             ModelSelectedId = 0,
-            FloorSelectedTextureId = 0
+            FloorSelectedTextureId = 0,
+            StartTile = int2.zero,
+            MapMagnification = mapMagnification,
+            MapOffset = mapOffset
         });
 
         entityManager.SetComponentData(controllerEntity, new MapComponent
@@ -115,174 +104,43 @@ public class MainController : MonoBehaviour
             TileDimension = mapData.MapDimension,
             TileWidth = mapData.TileWidth,
             ChunkDimension = mapData.ChunkDimension,
-            ChunkWidth = mapData.ChunkWidth
+            ChunkWidth = mapData.ChunkWidth,
+            MaxHeight = mapData.MaxHeight
         });
 
         entityManager.SetComponentData(controllerEntity, new MapTileComponent
         {
-            TileData = new NativeArray<int3>(mapData.MapDimension.x * mapData.MapDimension.y, Allocator.Persistent)
+            TileData = new NativeArray<TileData>(mapData.MapDimension.x * mapData.MapDimension.y, Allocator.Persistent),
+            TileHeightMap = new NativeArray<int>((mapData.MapDimension.x + 1) * (mapData.MapDimension.y + 1), Allocator.Persistent)
+        });
+
+        entityManager.SetComponentData(controllerEntity, new RectGameObject
+        {
+            RectView = rectView
         });
 
         entityManager.SetName(controllerEntity, "ControllerEntity");
-    }
-
-    private void GetWorldPositions ()
-    {
-        ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-
-        var intersectPoint = math.up();
-
-        if (mapPlane.Raycast(ray, out float distance))
-        {
-            intersectPoint = ray.GetPoint(distance);
-        }
-
-        var lastTilePosition = tilePosition;
-
-        worldPosition = new Vector2(intersectPoint.x, intersectPoint.z);
-
-        if (intersectPoint.y < 1f && IsWorldPositionValid(worldPosition))
-        {
-            tilePosition = new Vector2Int((int)(worldPosition.x / mapData.TileWidth), (int)(worldPosition.y / mapData.TileWidth));
-
-            if (lastTilePosition.Equals(tilePosition))
-            {
-                OnTilePositionChanged(true);
-            }
-        }
-        else
-        {
-            worldPosition = INVALID_FLOAT2;
-            tilePosition = INVALID_INT2;
-
-            if (lastTilePosition.Equals(tilePosition))
-            {
-                OnTilePositionChanged(false);
-            }
-        }
-    }
-
-    private bool IsWorldPositionValid (Vector2 worldPosition)
-    {
-        return worldPosition.x >= 0f && worldPosition.x < mapData.MapUnitDimension.x &&
-            worldPosition.y >= 0f && worldPosition.y < mapData.MapUnitDimension.y;
-    }
-
-    private void CheckInputs ()
-    {
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            CancelCreation();
-            return;
-        }
-
-        if (Input.GetMouseButtonDown(0))
-        {
-            if (!EventSystem.current.IsPointerOverGameObject())
-            {
-                if (state != State.None)
-                {
-                    isDragging = true;
-                    startDragTilePosition = tilePosition;
-                }
-            }
-        }
-        else if (Input.GetMouseButtonUp(0))
-        {
-            isDragging = false;
-
-            if (!EventSystem.current.IsPointerOverGameObject())
-            {
-                if (state == State.CreatingModel)
-                {
-                    entityManager.SetComponentData(controllerEntity, new ControllerComponent
-                    {
-                        State = ControllerState.CreateModel,
-                        Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
-                        ModelCount = modelCount,
-                        ModelSelectedId = currentModelSelectedId,
-                        FloorSelectedTextureId = 0
-                    });
-                }
-                else if (state == State.RemovingModel)
-                {
-                    entityManager.SetComponentData(controllerEntity, new ControllerComponent
-                    {
-                        State = ControllerState.RemoveModel,
-                        Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
-                        ModelCount = modelCount,
-                        ModelSelectedId = currentModelSelectedId,
-                        FloorSelectedTextureId = 0
-                    });
-                }
-                else if (state == State.CreatingWater)
-                {
-                    entityManager.SetComponentData(controllerEntity, new ControllerComponent
-                    {
-                        State = ControllerState.CreateWater,
-                        Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
-                        ModelCount = modelCount,
-                        ModelSelectedId = currentModelSelectedId,
-                        FloorSelectedTextureId = 0
-                    });
-                }
-            }
-        }
-    }
-
-    private void OnTilePositionChanged (bool tilePositionValid)
-    {
-        if (state != State.None)
-        {
-            if (isDragging)
-            {
-                GetRectFromTwoPoints(startDragTilePosition, tilePosition, out var rectPosition, out var rectSize);
-                rect = new RectInt(rectPosition, rectSize);
-                rectView.SetRect(rect, mapData.TileWidth);
-                isModelEditValid = tilePositionValid && IsWorldPositionValid(startDragTilePosition);
-                rectView.Show(isModelEditValid);
-            }
-            else
-            {
-                isModelEditValid = tilePositionValid;
-                rect = new RectInt(tilePosition, Vector2Int.one);
-                rectView.SetRect(rect, mapData.TileWidth);
-                rectView.Show(isModelEditValid);
-            }
-        }
-    }
-
-    public void GetRectFromTwoPoints (Vector2Int p1, Vector2Int p2, out Vector2Int init, out Vector2Int size)
-    {
-        if (p1.x <= p2.x && p1.y <= p2.y)
-        {
-            init = p1;
-            size = p2 - p1;
-        }
-        else if (p1.x <= p2.x && p1.y >= p2.y)
-        {
-            init = new Vector2Int(p1.x, p2.y);
-            size = new Vector2Int(p2.x - p1.x, p1.y - p2.y);
-        }
-        else if (p1.x >= p2.x && p1.y <= p2.y)
-        {
-            init = new Vector2Int(p2.x, p1.y);
-            size = new Vector2Int(p1.x - p2.x, p2.y - p1.y);
-        }
-        else
-        {
-            init = p2;
-            size = p1 - p2;
-        }
-
-        size += new Vector2Int(1, 1);
     }
 
     private void OnModelCreateButtonClicked ()
     {
         CancelCreation();
 
-        state = State.CreatingModel;
+        state = ControllerState.CreateModel;
+
+        entityManager.SetComponentData(controllerEntity, new ControllerComponent
+        {
+            State = state,
+            OnRectSelecting = true,
+            Rect = int4.zero,
+            ModelCount = modelCount,
+            ModelSelectedId = currentModelSelectedId,
+            FloorSelectedTextureId = 0,
+            StartTile = int2.zero,
+            MapMagnification = mapMagnification,
+            MapOffset = mapOffset
+        });
+
         rectView.Show(true);
     }
 
@@ -290,16 +148,64 @@ public class MainController : MonoBehaviour
     {
         CancelCreation();
 
-        state = State.RemovingModel;
+        state = ControllerState.RemoveModel;
+
+        entityManager.SetComponentData(controllerEntity, new ControllerComponent
+        {
+            State = state,
+            OnRectSelecting = true,
+            Rect = int4.zero,
+            ModelCount = modelCount,
+            ModelSelectedId = currentModelSelectedId,
+            FloorSelectedTextureId = 0,
+            StartTile = int2.zero,
+            MapMagnification = mapMagnification,
+            MapOffset = mapOffset
+        });
+
         rectView.Show(true);
     }
 
-    private void OnCreateWaterButtonClicked ()
+    private void OnTerrainLowerButtonClicked ()
     {
         CancelCreation();
 
-        state = State.CreatingWater;
+        state = ControllerState.LowerTerrain;
+
+        entityManager.SetComponentData(controllerEntity, new ControllerComponent
+        {
+            State = state,
+            OnRectSelecting = true,
+            Rect = int4.zero,
+            ModelCount = modelCount,
+            ModelSelectedId = currentModelSelectedId,
+            FloorSelectedTextureId = 0,
+            StartTile = int2.zero,
+            MapMagnification = mapMagnification,
+            MapOffset = mapOffset
+        });
+
         rectView.Show(true);
+    }
+
+    private void OnGenerateTerrainButtonClicked ()
+    {
+        CancelCreation();
+
+        state = ControllerState.GenerateTerrain;
+
+        entityManager.SetComponentData(controllerEntity, new ControllerComponent
+        {
+            State = state,
+            OnRectSelecting = false,
+            Rect = int4.zero,
+            ModelCount = modelCount,
+            ModelSelectedId = currentModelSelectedId,
+            FloorSelectedTextureId = 0,
+            StartTile = int2.zero,
+            MapMagnification = mapMagnification,
+            MapOffset = mapOffset
+        });
     }
 
     private void OnModelSelectionChanged (int modelSelected)
@@ -310,8 +216,19 @@ public class MainController : MonoBehaviour
 
     private void CancelCreation ()
     {
-        state = State.None;
-        isModelEditValid = false;
+        state = ControllerState.None;
+
+        entityManager.SetComponentData(controllerEntity, new ControllerComponent
+        {
+            State = state,
+            OnRectSelecting = false,
+            Rect = int4.zero,
+            ModelCount = modelCount,
+            ModelSelectedId = currentModelSelectedId,
+            FloorSelectedTextureId = 0,
+            StartTile = int2.zero
+        });
+
         rectView.Show(false);
     }
 
@@ -336,9 +253,4 @@ public class MainController : MonoBehaviour
             currentModelSelectedId = 0;
         }
     }
-}
-
-public enum State
-{
-    None, CreatingModel, RemovingModel, CreatingWater
 }

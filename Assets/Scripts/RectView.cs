@@ -3,9 +3,12 @@
 public class RectView : MonoBehaviour
 {
     [SerializeField] private MeshRenderer meshRenderer;
+    [SerializeField] private MeshFilter meshFilter;
     [SerializeField] private Color validCreatingColor;
     [SerializeField] private Color validRemovingColor;
     [SerializeField] private Color invalidColor;
+
+    public Mesh Mesh => meshFilter.mesh;
 
     public void SetValidation (bool isCreating, bool isValid)
     {
@@ -24,5 +27,12 @@ public class RectView : MonoBehaviour
         var tileScale = 0.1f * tileWidth;
         transform.position = new Vector3((rect.position.x * tileWidth) + halfSize.x, 0.01f, (rect.position.y * tileWidth) + halfSize.y);
         transform.localScale = new Vector3(rect.size.x * tileScale, 1f, rect.size.y * tileScale);
+    }
+
+    public void SetMesh (Mesh mesh)
+    {
+        meshFilter.mesh = mesh;
+        meshFilter.mesh.RecalculateNormals();
+        meshFilter.mesh.RecalculateBounds();
     }
 }

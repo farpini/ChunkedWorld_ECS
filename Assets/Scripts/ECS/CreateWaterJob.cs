@@ -191,8 +191,6 @@ public partial struct CreateWaterJob2 : IJob
 
     }
 
-
-
     [BurstCompile]
     private int GetTileQuadIdFromTile (int2 tilePosition)
     {

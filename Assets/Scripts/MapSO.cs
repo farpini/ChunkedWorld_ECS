@@ -8,6 +8,7 @@ public class MapSO : ScriptableObject
     [SerializeField] private int tileWidth;
     [SerializeField] private float borderingWidth;
     [SerializeField] private int chunkWidth;
+    [SerializeField] private int maxHeight;
 
     private float2 unitDimension;
 
@@ -18,6 +19,7 @@ public class MapSO : ScriptableObject
     public int ChunkWidth => chunkWidth;
     public bool Validate => (chunkWidth != 0 && (mapDimension.x % chunkWidth == 0) && (mapDimension.y % chunkWidth == 0));
     public int2 ChunkDimension => (mapDimension / chunkWidth);
+    public int MaxHeight => maxHeight;
 
     private void OnEnable ()
     {

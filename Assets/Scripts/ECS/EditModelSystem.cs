@@ -38,6 +38,11 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
     {
         var controllerData = SystemAPI.GetSingletonRW<ControllerComponent>();
 
+        if (controllerData.ValueRO.OnRectSelecting)
+        {
+            return;
+        }
+
         if (controllerData.ValueRO.State != ControllerState.CreateModel && controllerData.ValueRO.State != ControllerState.RemoveModel)
         {
             return;
@@ -305,7 +310,7 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
 [BurstCompile]
 public partial struct GetModelArrayOnTileToRemoveJob : IJob
 {
-    public NativeArray<int3> MapTiles;
+    public NativeArray<TileData> MapTiles;
 
     [ReadOnly]
     public int2 RectPosition;
@@ -333,10 +338,10 @@ public partial struct GetModelArrayOnTileToRemoveJob : IJob
 
                 var tileData = MapTiles[tileIndex];
 
-                if (tileData.y != 0)
+                if (tileData.modelType != 0)
                 {
-                    ModelArrayOnTilesToRemove[tileData.y - 1].Add(tileIndex);
-                    tileData.y = 0;
+                    ModelArrayOnTilesToRemove[tileData.modelType - 1].Add(tileIndex);
+                    tileData.modelType = 0;
                     MapTiles[tileIndex] = tileData;
                 }
             }
@@ -359,7 +364,7 @@ public partial struct GetModelArrayOnTileToRemoveJob : IJob
 [BurstCompile]
 public partial struct CreateModelInChunkRectJob : IJob
 {
-    public NativeArray<int3> MapTiles;
+    public NativeArray<TileData> MapTiles;
     public NativeHashMap<int, int> Mapping;
     public NativeHashMap<int, int> InvMapping;
 
@@ -426,21 +431,21 @@ public partial struct CreateModelInChunkRectJob : IJob
                 var tilePosition = RectPosition + new int2(i, j);
                 var tileIndex = GetTileIndexFromTilePosition(tilePosition);
 
-                var modelWorldPosition = new float3(
-                    tilePosition.x * MapTileWidth + halfTileWidth,
-                    0f,
-                    tilePosition.y * MapTileWidth + halfTileWidth);
-
                 var tileData = MapTiles[tileIndex];
 
-                if (tileData.y != ModelId)
+                var modelWorldPosition = new float3(
+                    tilePosition.x * MapTileWidth + halfTileWidth,
+                    (tileData.terrainLevel + tileData.terrainHeight) * MapTileWidth,
+                    tilePosition.y * MapTileWidth + halfTileWidth);
+
+                if (tileData.modelType != ModelId)
                 {
-                    if (tileData.y != 0)
+                    if (tileData.modelType != 0)
                     {
-                        ModelArrayOnTilesToRemove[tileData.y - 1].Add(tileIndex);
+                        ModelArrayOnTilesToRemove[tileData.modelType - 1].Add(tileIndex);
                     }
 
-                    tileData.y = ModelId;
+                    tileData.modelType = ModelId;
                     MapTiles[tileIndex] = tileData;
 
                     if (Mapping.ContainsKey(tileIndex))

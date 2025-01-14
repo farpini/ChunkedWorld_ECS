@@ -4,6 +4,8 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using MeshGenerator;
+using BlobHashMaps;
+using static Unity.VisualScripting.Member;
 
 public class MeshDataAuthoring : MonoBehaviour
 {
@@ -109,7 +111,7 @@ public class MapTileBaker : Baker<MapTile>
         var blobBuilder = new BlobBuilder(Allocator.Temp);
         ref var blobData = ref blobBuilder.ConstructRoot<MeshBlobData>();
 
-        var tileTypeCount = 19;
+        var tileTypeCount = System.Enum.GetValues(typeof(TileTerrainType)).Length;
         var tileVertexCount = 4;
         var tileIndexCount = 6;
         var vertexAttributeCount = 3;
@@ -193,6 +195,41 @@ public class MapTileBaker : Baker<MapTile>
             vertexCount = tileVertexCount,
             indexCount = tileIndexCount,
             vertexAttributeDimension = vertexAttributeDimension
+        });
+
+        blobBuilder.Dispose();
+
+        var tileTerrainMapping = new NativeParallelHashMap<int4, int>(System.Enum.GetValues(typeof(TileTerrainType)).Length, Allocator.Temp);
+        tileTerrainMapping.Add(int4.zero, (int)TileTerrainType.Flat);
+        tileTerrainMapping.Add(new int4(0, 1, 0, 1), (int)TileTerrainType.Saddle_0);
+        tileTerrainMapping.Add(new int4(1, 0, 1, 0), (int)TileTerrainType.Saddle_1);
+        tileTerrainMapping.Add(new int4(0, 0, 1, 1), (int)TileTerrainType.Ramp_0);
+        tileTerrainMapping.Add(new int4(1, 1, 0, 0), (int)TileTerrainType.Ramp_1);
+        tileTerrainMapping.Add(new int4(0, 1, 1, 0), (int)TileTerrainType.Ramp_2);
+        tileTerrainMapping.Add(new int4(1, 0, 0, 1), (int)TileTerrainType.Ramp_3);
+        tileTerrainMapping.Add(new int4(1, 0, 0, 0), (int)TileTerrainType.H1_0);
+        tileTerrainMapping.Add(new int4(0, 0, 1, 0), (int)TileTerrainType.H1_1);
+        tileTerrainMapping.Add(new int4(0, 1, 0, 0), (int)TileTerrainType.H1_2);
+        tileTerrainMapping.Add(new int4(0, 0, 0, 1), (int)TileTerrainType.H1_3);
+        tileTerrainMapping.Add(new int4(1, 1, 0, 1), (int)TileTerrainType.H3_0);
+        tileTerrainMapping.Add(new int4(0, 1, 1, 1), (int)TileTerrainType.H3_1);
+        tileTerrainMapping.Add(new int4(1, 1, 1, 0), (int)TileTerrainType.H3_2);
+        tileTerrainMapping.Add(new int4(1, 0, 1, 1), (int)TileTerrainType.H3_3);
+        tileTerrainMapping.Add(new int4(2, 1, 0, 1), (int)TileTerrainType.Steep_0);
+        tileTerrainMapping.Add(new int4(1, 2, 1, 0), (int)TileTerrainType.Steep_1);
+        tileTerrainMapping.Add(new int4(0, 1, 2, 1), (int)TileTerrainType.Steep_2);
+        tileTerrainMapping.Add(new int4(1, 0, 1, 2), (int)TileTerrainType.Steep_3);
+
+        blobBuilder = new BlobBuilder(Allocator.Temp);
+        ref var root = ref blobBuilder.ConstructRoot<BlobHashMap<int4, int>>();
+        blobBuilder.ConstructHashMap(ref root, ref tileTerrainMapping);
+
+        var blobMeshTileTerrainMappingRef = blobBuilder.CreateBlobAssetReference<BlobHashMap<int4, int>>(Allocator.Persistent);
+        AddBlobAsset<BlobHashMap<int4, int>>(ref blobMeshTileTerrainMappingRef, out _);
+
+        AddSharedComponent(entity, new MeshBlobTileTerrainMappingComponent
+        {
+            mapping = blobMeshTileTerrainMappingRef
         });
 
         blobBuilder.Dispose();

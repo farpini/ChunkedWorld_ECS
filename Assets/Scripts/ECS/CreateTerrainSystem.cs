@@ -7,9 +7,7 @@ using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine;
-using System.Drawing;
 using Unity.Collections.LowLevel.Unsafe;
-using static UnityEditor.PlayerSettings;
 
 public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
 {
@@ -176,288 +174,266 @@ public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
 
     private void GenerateTerrain (ref SystemState state, RefRW<ControllerComponent> controllerData)
     {
+        var terrainEntity = SystemAPI.GetSingleton<RendererPrefabEntities>().tilePrefab;
+        var meshBlobInfoComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(terrainEntity);
+
         var mapTileComponent = SystemAPI.GetSingletonRW<MapTileComponent>();
         var mapHeights = mapTileComponent.ValueRW.TileHeightMap;
-
-        /*
-        var terrainHeightMapSettings = new TerrainHeightMapSettings
-        {
-            noiseScale = 4f,
-            frequency = 5f,
-            lacunarity = 1f,
-            octaves = 3,
-            weight = 1f,
-            falloffOffset = 0,
-            falloffSteepness = 0
-        };
-        */
-
-        //var randomValue = new Random(9184718);
-        //var mapSeed = new int2(randomValue.NextInt(), randomValue.NextInt());
-
-        //UnityEngine.Debug.Log("Generated: " + controllerData.ValueRO.MapMagnification);
-
-        var result = new NativeArray<int>(4, Allocator.TempJob);
         var randomValueSeed = seedRandom.NextUInt();
 
-        UnityEngine.Debug.LogWarning("RandomSeed: " + randomValueSeed);
+        var groundMesh = new Mesh();
+        var groundMeshArray = Mesh.AllocateWritableMeshData(groundMesh);
+        var groundData = groundMeshArray[0];
 
-        var generateTerrainHeightMapJob = new GenerateTerrainHeightMapJob
+        var quadsCount = (mapComponent.TileDimension.x * 2) + (mapComponent.TileDimension.y * 2);
+        var vertexCount = quadsCount * 4; 
+        var indexCount = quadsCount * 6;
+
+        groundData.SetVertexBufferParams(vertexCount, meshBlobInfoComponent.meshInfoBlob.Value.attributes.ToArray());
+        groundData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
+
+        var generateTerrainWithDiamondSquareJob = new GenerateTerrainWithDiamondSquareJob
         {
             MapHeights = mapHeights,
-            CurrentHeight = new NativeArray<double>(mapHeights.Length, Allocator.TempJob),
-            MapTileDimension = mapComponent.TileDimension,
+            CurrentHeight = new NativeArray<float>(mapHeights.Length, Allocator.TempJob),
+            TileWidth = mapComponent.TileWidth,
+            MapHeightWidth = mapComponent.TileDimension.x + 1,
             MaxHeight = mapComponent.MaxHeight,
-            MapOffset = controllerData.ValueRO.MapOffset,
-            MapSeed = int2.zero,
+            MaxDepth = mapComponent.MaxDepth,
             RandomValue = new Unity.Mathematics.Random(randomValueSeed),
-            TerrainSettings = new TerrainHeightMapSettings
-            {
-                noiseScale = 2,
-                frequency = controllerData.ValueRO.MapMagnification,
-                octaves = 3,
-                lacunarity = 0.2f,
-                weight = 1f,
-                falloffOffset = 10,
-                falloffSteepness = 0
-            },
-            outtt = result
+            Roughness = (int)mapComponent.Roughness,
+            GroundMeshData = groundData
         };
 
-        generateTerrainHeightMapJob.Schedule(state.Dependency).Complete();
+        generateTerrainWithDiamondSquareJob.Schedule(state.Dependency).Complete();
 
-        //UnityEngine.Debug.LogWarning("0: " + result[0] + " 1: " + result[1] + " 2: " + result[2] + " 3: " + result[3]);
+        groundData.subMeshCount = 1;
+        groundData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
+
+        Mesh.ApplyAndDisposeWritableMeshData(groundMeshArray, groundMesh, MeshUpdateFlags.Default);
+
+        groundMesh.RecalculateNormals();
+        groundMesh.RecalculateBounds();
+
+        SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().Map.SetMeshGround(groundMesh);
     }
 }
 
-// 	Created by Jacob Milligan on 10/10/2016.
-// 	Copyright (c) Jacob Milligan All rights reserved
 
 [BurstCompile]
-public partial struct GenerateTerrainHeightMapJob : IJob
+public partial struct GenerateTerrainWithDiamondSquareJob : IJob
 {
+    // RESULT TERRAIN HEIGHT
     public NativeArray<int> MapHeights;
-    public NativeArray<double> CurrentHeight;
+
+    // TEMPORARY ARRAY FOR CALCULATION
+    public NativeArray<float> CurrentHeight;
 
     [ReadOnly]
-    public int2 MapTileDimension;
+    public int TileWidth;
 
     [ReadOnly]
-    public float2 MapOffset;
+    public int MapHeightWidth;
 
     [ReadOnly]
     public int MaxHeight;
 
     [ReadOnly]
-    public int2 MapSeed;
+    public int MaxDepth;
 
     [ReadOnly]
     public Unity.Mathematics.Random RandomValue;
 
     [ReadOnly]
-    public float RoughNess;
-
-    [ReadOnly]
-    public TerrainHeightMapSettings TerrainSettings;
+    public int Roughness;
 
     [WriteOnly]
-    public NativeArray<int> outtt;
-
-
-    [BurstCompile]
-    private int GetHeightIndexFromHeighPosition (int2 heightPosition)
-    {
-        return heightPosition.x * (MapTileDimension.y + 1) + heightPosition.y;
-    }
+    [NativeDisableContainerSafetyRestriction]
+    public Mesh.MeshData GroundMeshData;
 
     [BurstCompile]
     public void Execute ()
     {
-        var instanceSize = (int)MapOffset.x;
-        var scale = (double)TerrainSettings.frequency;
+        CurrentHeight[GetHeightIndex(0, 0)] = RandomFloat();
+        CurrentHeight[GetHeightIndex(MapHeightWidth - 1, 0)] = RandomFloat();
+        CurrentHeight[GetHeightIndex(0, MapHeightWidth -1)] = RandomFloat();
+        CurrentHeight[GetHeightIndex(MapHeightWidth -1, MapHeightWidth - 1)] = RandomFloat();
 
-        /*
-        CurrentHeight[GetHeightIndexFromHeighPosition(int2.zero)] = -1;
-        CurrentHeight[GetHeightIndexFromHeighPosition(new int2(MapTileDimension.x - 1, 0))] = -1;
-        CurrentHeight[GetHeightIndexFromHeighPosition(new int2(0, MapTileDimension.y - 1))] = -1;
-        CurrentHeight[GetHeightIndexFromHeighPosition(new int2(MapTileDimension.x - 1, MapTileDimension.y - 1))] = -1;
-        CurrentHeight[GetHeightIndexFromHeighPosition(new int2(MapTileDimension.x / 2, MapTileDimension.y / 2))] = 1;
-        */
+        var maxValue = 0f;
 
-        CurrentHeight[GetHeightIndexFromHeighPosition(int2.zero)] = RandomDouble();
-        CurrentHeight[GetHeightIndexFromHeighPosition(new int2(MapTileDimension.x - 1, 0))] = RandomDouble();
-        CurrentHeight[GetHeightIndexFromHeighPosition(new int2(0, MapTileDimension.y - 1))] = RandomDouble();
-        CurrentHeight[GetHeightIndexFromHeighPosition(new int2(MapTileDimension.x - 1, MapTileDimension.y - 1))] = RandomDouble();
+        DiamondSquareExecute(MapHeightWidth, Roughness, ref maxValue);
 
-        while (instanceSize > 1)
+        for (int x = 0; x < MapHeightWidth; x++)
         {
-            Iterate(instanceSize, scale);
-
-            instanceSize /= 2;
-            scale /= 2.0;
-        }
-
-        //var zeros = 0;
-        //var ones = 0;
-        //var twos = 0; 
-        //var threes = 0;
-        var p = int2.zero;
-        var pIndex = 0;
-
-        for (int i = 0; i < MapTileDimension.x; i++)
-        {
-            for (int j = 0; j < MapTileDimension.y; j++)
+            for (int y = 0; y < MapHeightWidth; y++)
             {
-                p = new int2(i, j);
-                pIndex = GetHeightIndexFromHeighPosition(p);
-                var heightValue = math.clamp(CurrentHeight[pIndex], 0f, 1f) * MaxHeight;
-                if (heightValue == MaxHeight)
+                var heightIndex = GetHeightIndex(x, y);
+                var heightValue = math.unlerp(0f, maxValue, CurrentHeight[heightIndex]) * MaxHeight;
+                if (heightValue >= MaxHeight)
                 {
                     heightValue = MaxHeight - 1;
                 }
-                var h = (int)math.floor(heightValue);
-                /*
-                if (h == 0)
-                    zeros++;
-                else if (h == 1)
-                    ones++;
-                else if (h == 2)
-                    twos++;
-                else
-                    threes++;
-                */
-
-                MapHeights[pIndex] = h;
+                if (heightValue <= -MaxDepth)
+                {
+                    heightValue = -MaxDepth + 1;
+                }
+                MapHeights[heightIndex] = heightValue >= 0 ? (int)math.floor(heightValue) : (int)math.ceil(heightValue);
             }
         }
 
-        // fix last row&column tile height to be a copy from the previous
-        p = new int2(MapTileDimension.x, MapTileDimension.y);
-        pIndex = GetHeightIndexFromHeighPosition(p);
-        var pO = new int2(MapTileDimension.x - 1, MapTileDimension.y - 1);
-        var pOIndex = GetHeightIndexFromHeighPosition(pO);
-        MapHeights[pIndex] = MapHeights[pOIndex];
+        CreateBorderingGround();
+    }
 
-        for (int i = 0; i < MapTileDimension.x; i++)
+    [BurstCompile]
+    private void DiamondSquareExecute (int size, float roughness, ref float maxValue)
+    {
+        int half = size / 2;
+        if (half < 1)
         {
-            p = new int2(i, MapTileDimension.y);
-            pIndex = GetHeightIndexFromHeighPosition(p);
-            pO = new int2(i, MapTileDimension.y - 1);
-            pOIndex = GetHeightIndexFromHeighPosition(pO);
-            MapHeights[pIndex] = MapHeights[pOIndex];
+            return;
         }
 
-        for (int j = 0; j < MapTileDimension.y; j++)
+        for (int x = half; x < MapHeightWidth; x += size)
         {
-            p = new int2(MapTileDimension.x, j);
-            pIndex = GetHeightIndexFromHeighPosition(p);
-            pO = new int2(MapTileDimension.x - 1, j);
-            pOIndex = GetHeightIndexFromHeighPosition(pO);
-            MapHeights[pIndex] = MapHeights[pOIndex];
-        }
-
-        
-
-        //outtt[0] = zeros;
-        //outtt[1] = ones;
-        //outtt[2] = twos;
-        //outtt[3] = threes;
-    }
-
-    [BurstCompile]
-    private double GetValue (int x, int y)
-    {
-        var pos = WrapGrid(x, y, MapTileDimension.x, MapTileDimension.y);
-        return CurrentHeight[GetHeightIndexFromHeighPosition(pos)];
-    }
-
-    [BurstCompile]
-    private double RandomDouble ()
-    {
-        return RandomValue.NextDouble() * 2 - 1;
-    }
-
-    [BurstCompile]
-    private void Iterate (int step, double currentScale)
-    {
-        var halfStep = step / 2;
-
-        // Handle squares
-        for (int y = halfStep; y < halfStep + MapTileDimension.y; y += step)
-        {
-            for (int x = halfStep; x < halfStep + MapTileDimension.x; x += step)
+            for (int y = half; y < MapHeightWidth; y += size)
             {
-                HandleSquare(x, y, step, RandomDouble() * currentScale);
+                DiamondStep(x, y, half, roughness, ref maxValue);
             }
         }
 
-        // Handle diamonds
-        for (int y = 0; y < MapTileDimension.y; y += step)
+        DiamondSquareExecute(half, roughness / 2, ref maxValue);
+    }
+
+    [BurstCompile]
+    private void DiamondStep (int x, int y, int half, float roughness, ref float maxValue)
+    {
+        var value = 0f;
+        value += CurrentHeight[GetHeightIndex(x + half, y - half)];
+        value += CurrentHeight[GetHeightIndex(x - half, y + half)];
+        value += CurrentHeight[GetHeightIndex(x + half, y + half)];
+        value += CurrentHeight[GetHeightIndex(x - half, y - half)];
+
+        value /= 4;
+        value += RandomFloat() * roughness;
+
+        if (value > maxValue)
         {
-            for (int x = 0; x < MapTileDimension.x; x += step)
-            {
-                HandleDiamond(x + halfStep, y, step, RandomDouble() * currentScale);
-                HandleDiamond(x, y + halfStep, step, RandomDouble() * currentScale);
-            }
+            maxValue = value;
+        }
+
+        CurrentHeight[GetHeightIndex(x, y)] = value;
+
+        SquareStep(x - half, y, half, roughness, ref maxValue);
+        SquareStep(x + half, y, half, roughness, ref maxValue);
+        SquareStep(x, y - half, half, roughness, ref maxValue);
+        SquareStep(x, y + half, half, roughness, ref maxValue);
+    }
+
+    [BurstCompile]
+    private void SquareStep (int x, int y, int half, float roughness, ref float maxValue)
+    {
+        var value = 0f;
+        var count = 0;
+        if (x - half >= 0)
+        {
+            value += CurrentHeight[GetHeightIndex(x - half, y)];
+            count++;
+        }
+        if (x + half < MapHeightWidth)
+        {
+            value += CurrentHeight[GetHeightIndex(x + half, y)];
+            count++;
+        }
+        if (y - half >= 0)
+        {
+            value += CurrentHeight[GetHeightIndex(x, y - half)];
+            count++;
+        }
+        if (y + half < MapHeightWidth)
+        {
+            value += CurrentHeight[GetHeightIndex(x, y + half)];
+            count++;
+        }
+
+        value /= count;
+        value += RandomFloat() * roughness;
+
+        if (value > maxValue)
+        {
+            maxValue = value;
+        }
+
+        CurrentHeight[GetHeightIndex(x, y)] = value;
+    }
+
+    [BurstCompile]
+    private int GetHeightIndex (int x, int y)
+    {
+        return x * MapHeightWidth + y;
+    }
+
+    [BurstCompile]
+    private float RandomFloat ()
+    {
+        return RandomValue.NextFloat() * 2 - 1;
+    }
+
+    [BurstCompile]
+    private void CreateBorderingGround ()
+    {
+        var vertexesArray = GroundMeshData.GetVertexData<float3>();
+        var indexArray = GroundMeshData.GetIndexData<uint>();
+
+        var vertexCount = 4;
+        var vIndex = 0;
+        var tIndex = 0;
+        var tValue = 0u;
+
+        for (int i = 0; i < MapHeightWidth - 1; i++)
+        {
+            CreateBordering(new int2(i, 0), new int2(i + 1, 0), tValue, 
+                ref vIndex, ref tIndex, ref vertexesArray, ref indexArray);
+            tValue += (uint)vertexCount;
+            CreateBordering(new int2(i + 1, MapHeightWidth - 1), new int2(i, MapHeightWidth - 1), tValue, 
+                ref vIndex, ref tIndex, ref vertexesArray, ref indexArray);
+            tValue += (uint)vertexCount;
+
+            CreateBordering(new int2(0, i + 1), new int2(0, i), tValue,
+                ref vIndex, ref tIndex, ref vertexesArray, ref indexArray);
+            tValue += (uint)vertexCount;
+            CreateBordering(new int2(MapHeightWidth - 1, i), new int2(MapHeightWidth - 1, i + 1), tValue,
+                ref vIndex, ref tIndex, ref vertexesArray, ref indexArray);
+            tValue += (uint)vertexCount;
         }
     }
 
     [BurstCompile]
-    private void HandleSquare (int x, int y, int step, double newValue)
+    private void CreateBordering (int2 positionA, int2 positionB, uint tValue, ref int vIndex, ref int tIndex, 
+        ref NativeArray<float3> vertexesArray, ref NativeArray<uint> indexArray)
     {
-        var halfStep = step / 2;
+        var v0 = new float3(positionA.x, -MaxDepth, positionA.y) * TileWidth;
+        vertexesArray[vIndex++] = v0;
+        vertexesArray[vIndex++] = float3.zero;
+        vertexesArray[vIndex++] = new float3(0f, 0f, 0f);
 
-        var a = GetValue(x - halfStep, y - halfStep);
-        var b = GetValue(x + halfStep, y - halfStep);
-        var c = GetValue(x - halfStep, y + halfStep);
-        var d = GetValue(x + halfStep, y + halfStep);
+        var v1 = new float3(positionB.x, -MaxDepth, positionB.y) * TileWidth;
+        vertexesArray[vIndex++] = v1;
+        vertexesArray[vIndex++] = float3.zero;
+        vertexesArray[vIndex++] = new float3(1f, 0f, 0f);
 
-        var pos = WrapGrid(x, y, MapTileDimension.x, MapTileDimension.y);
-        CurrentHeight[GetHeightIndexFromHeighPosition(pos)] = ((a + b + c + d) / 4.0) + newValue;
+        vertexesArray[vIndex++] = v1.WithY(MapHeights[GetHeightIndex(positionB.x, positionB.y)] * TileWidth);
+        vertexesArray[vIndex++] = float3.zero;
+        vertexesArray[vIndex++] = new float3(1f, 1f, 0f);
 
-        //_values[pos.X, pos.Y] = ((a + b + c + d) / 4.0) + newValue;
-    }
+        vertexesArray[vIndex++] = v0.WithY(MapHeights[GetHeightIndex(positionA.x, positionA.y)] * TileWidth);
+        vertexesArray[vIndex++] = float3.zero;
+        vertexesArray[vIndex++] = new float3(0f, 1f, 0f);
 
-    [BurstCompile]
-    private void HandleDiamond (int x, int y, int step, double newValue)
-    {
-        var halfStep = step / 2;
-
-        var b = GetValue(x + halfStep, y);
-        var d = GetValue(x - halfStep, y);
-        var a = GetValue(x, y - halfStep);
-        var c = GetValue(x, y + halfStep);
-
-        var pos = WrapGrid(x, y, MapTileDimension.x, MapTileDimension.y);
-        CurrentHeight[GetHeightIndexFromHeighPosition(pos)] = ((a + b + c + d) / 4.0) + newValue;
-
-        //_values[pos.X, pos.Y] = ((a + b + c + d) / 4.0) + newValue;
-    }
-
-    [BurstCompile]
-    public int2 WrapGrid (int x, int y, int width, int height)
-    {
-        var xResult = 0;
-        var yResult = 0;
-
-        if (x >= 0)
-        {
-            xResult = x % width; // wrap right
-        }
-        else
-        {
-            xResult = (width + x % width) % width; // wrap left
-        }
-
-        if (y >= 0)
-        {
-            yResult = y % height; // wrap down
-        }
-        else
-        {
-            yResult = (height + y % height) % height; // wrap up
-        }
-
-        return new int2(xResult, yResult);
+        indexArray[tIndex++] = tValue;
+        indexArray[tIndex++] = tValue + 2;
+        indexArray[tIndex++] = tValue + 1;
+        indexArray[tIndex++] = tValue;
+        indexArray[tIndex++] = tValue + 3;
+        indexArray[tIndex++] = tValue + 2;
     }
 }

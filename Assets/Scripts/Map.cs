@@ -4,33 +4,28 @@ using UnityEngine;
 
 public class Map : MonoBehaviour
 {
-    [SerializeField] private Transform groundTransform;
+    [SerializeField] private Transform waterTransform;
+    [SerializeField] private MeshFilter groundRenderer;
     [SerializeField] private CameraController cameraController;
 
-    private MapSO mapData;
-
-    public void Initialize (MapSO map)
+    public void Initialize (MapComponent mapData)
     {
-        if (!map.Validate)
-        {
-            Debug.LogWarning("MapSO is not a valid map settings. Use other map input data.");
-            return;
-        }
+        float2 unitDimension = mapData.UnitDimension;
 
-        mapData = map;
+        Vector2 mapSize = new float2(unitDimension.x, unitDimension.y);
 
-        float mapExtend = mapData.BorderingWidth * mapData.TileWidth;
-
-        float2 unitDimension = mapData.MapUnitDimension;
-
-        Vector2 mapSize = new float2(unitDimension.x + (mapExtend * 2f), unitDimension.y + (mapExtend * 2f));
-
-        transform.position = new Vector3(mapSize.x * 0.5f - mapExtend, -0.001f, mapSize.y * 0.5f - mapExtend);
+        transform.position = new Vector3(mapSize.x * 0.5f, -0.001f, mapSize.y * 0.5f);
         transform.localScale = new Vector3(mapSize.x * 0.1f, 1f, mapSize.y * 0.1f);
 
-        groundTransform.localScale = new Vector3(10f, 5f, 10f);
-        groundTransform.localPosition = new Vector3(0f, -1f, 0f);
+        waterTransform.gameObject.SetActive(mapData.MaxDepth > 0);
+        waterTransform.localScale = new Vector3(9.9999f, mapData.TileWidth * mapData.MaxDepth, 9.9999f);
+        waterTransform.localPosition = new Vector3(0f, -(mapData.MaxDepth + mapData.TileWidth * 0.5f), 0f);
 
         cameraController.SetMapData(mapData);
+    }
+
+    public void SetMeshGround (Mesh mesh)
+    {
+        groundRenderer.mesh = mesh;
     }
 }

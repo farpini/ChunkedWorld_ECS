@@ -16,12 +16,11 @@ public struct ControllerComponent : IComponentData
     public int ModelSelectedId;
     public int FloorSelectedTextureId;
     public int2 StartTile;
-    public float MapMagnification;
-    public float2 MapOffset;
 }
 
-public class RectGameObject : IComponentData
+public class RefGameObject : IComponentData
 {
+    public Map Map;
     public RectView RectView;
 }
 
@@ -51,8 +50,12 @@ public struct MapComponent : IComponentData
     public int2 ChunkDimension;
     public int ChunkWidth;
     public int MaxHeight;
+    public int MaxDepth;
+    public int Roughness;
 
     public float HalfTileWidth => TileWidth * 0.5f;
+    public float2 UnitDimension => new float2 (TileDimension.x, TileDimension.y) * TileWidth;
+    public bool Validate => (ChunkWidth != 0 && (TileDimension.x % ChunkWidth == 0) && (TileDimension.y % ChunkWidth == 0));
 
     public int GetTileIndexFromTilePosition (int2 tilePosition)
     {

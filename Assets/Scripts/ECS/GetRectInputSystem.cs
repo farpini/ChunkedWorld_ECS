@@ -104,7 +104,7 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
                     controllerData.ValueRW.Rect = rect;
                     controllerData.ValueRW.OnRectSelecting = false;
 
-                    SystemAPI.ManagedAPI.GetSingleton<RectGameObject>().RectView.SetMesh(new Mesh());
+                    SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().RectView.SetMesh(new Mesh());
                 }
 
                 /*
@@ -284,7 +284,7 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 
     private void SetRectView (ref SystemState state, int2 rectPosition, int2 rectSize, ref NativeArray<TileData> mapTiles, ref NativeArray<int> mapHeights)
     {
-        var rectView = SystemAPI.ManagedAPI.GetSingleton<RectGameObject>().RectView;
+        var rectView = SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().RectView;
         var mesh = new Mesh();
         var rectViewMeshArray = Mesh.AllocateWritableMeshData(mesh);
         var rectViewMesh = rectViewMeshArray[0];

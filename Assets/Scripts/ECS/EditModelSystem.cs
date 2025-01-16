@@ -11,11 +11,11 @@ using UnityEngine.Rendering;
 
 public partial struct EditModelSystem : ISystem, ISystemStartStop
 {
-    private MapComponent mapComponent;
+    private MapComponent2 mapComponent;
 
     public void OnCreate (ref SystemState state)
     {
-        state.RequireForUpdate<MapComponent>();
+        state.RequireForUpdate<MapComponent2>();
         state.RequireForUpdate<ControllerComponent>();
         state.RequireForUpdate<ModelDataEntityBuffer>();
         state.RequireForUpdate<RectChunkEntityBuffer>();
@@ -27,7 +27,7 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
 
     public void OnStartRunning (ref SystemState state)
     {
-        mapComponent = SystemAPI.GetSingleton<MapComponent>();
+        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
     }
 
     public void OnStopRunning (ref SystemState state)

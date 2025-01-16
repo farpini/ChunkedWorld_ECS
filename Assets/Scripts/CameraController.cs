@@ -14,8 +14,6 @@ public class CameraController : MonoBehaviour
     private Plane horizontalPlane;
     private Vector3 lastWorldPosition = Vector3.zero;
 
-    private MapSO mapSettings;
-
     // Zooming
     private float zoomDistance;
     [SerializeField] private float zoomStartDistance = 200f;//1000f;
@@ -66,7 +64,7 @@ public class CameraController : MonoBehaviour
         }
     }
 
-    public void SetMapData (MapComponent mapData)
+    public void SetMapData (MapComponent2 mapData)
     {
         target.position = new Vector3(mapData.TileDimension.x * 0.5f, 0f, mapData.TileDimension.y * 0.5f);
         target.eulerAngles = Vector3.up * 180.0f;

@@ -43,19 +43,20 @@ public struct TerrainComponent : IComponentData
 {
 }
 
-public struct MapComponent : IComponentData
+public struct MapComponent2 : IComponentData
 {
     public int2 TileDimension;
     public int TileWidth;
-    public int2 ChunkDimension;
     public int ChunkWidth;
     public int MaxHeight;
     public int MaxDepth;
-    public int Roughness;
+    public float Roughness;
 
     public float HalfTileWidth => TileWidth * 0.5f;
-    public float2 UnitDimension => new float2 (TileDimension.x, TileDimension.y) * TileWidth;
+    public float2 UnitDimension => new float2(TileDimension.x, TileDimension.y) * TileWidth;
     public bool Validate => (ChunkWidth != 0 && (TileDimension.x % ChunkWidth == 0) && (TileDimension.y % ChunkWidth == 0));
+    public int MaxLevel => (MaxHeight + MaxDepth);
+    public int2 ChunkDimension => new int2(TileDimension / ChunkWidth);
 
     public int GetTileIndexFromTilePosition (int2 tilePosition)
     {

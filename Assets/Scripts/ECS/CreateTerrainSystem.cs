@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using Unity.Burst;
+﻿using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -12,11 +11,14 @@ using Unity.Collections.LowLevel.Unsafe;
 public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
 {
     private Unity.Mathematics.Random seedRandom;
-    private MapComponent mapComponent;
+    private Unity.Mathematics.Random RandomValue;
+    private MapComponent2 mapComponent;
+    private int MapHeightWidth;
+    private static NativeArray<float> CurrentHeight;
 
     public void OnCreate (ref SystemState state)
     {
-        state.RequireForUpdate<MapComponent>();
+        state.RequireForUpdate<MapComponent2>();
         state.RequireForUpdate<ControllerComponent>();
         state.RequireForUpdate<ModelDataEntityBuffer>();
         state.RequireForUpdate<RendererPrefabEntities>();
@@ -36,7 +38,8 @@ public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
     {
         seedRandom = new Unity.Mathematics.Random(34543);
 
-        mapComponent = SystemAPI.GetSingleton<MapComponent>();
+        /*
+        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
 
         var rendererPrefabEntities = SystemAPI.GetSingleton<RendererPrefabEntities>();
 
@@ -60,8 +63,52 @@ public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
                 }
             }
         }
+        */
 
+        CreateTerrainChunkRenderers(ref state);
         GenerateTerrain(ref state, SystemAPI.GetSingletonRW<ControllerComponent>());
+    }
+
+    private void CreateTerrainChunkRenderers (ref SystemState state)
+    {
+        var currentMapSize = mapComponent.TileDimension.x;
+        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
+
+        var rendererPrefabEntities = SystemAPI.GetSingleton<RendererPrefabEntities>();
+        var terrainChunkEntityBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(rendererPrefabEntities.tilePrefab);
+
+        if (currentMapSize == mapComponent.TileDimension.x && terrainChunkEntityBuffer.Length > 0)
+        {
+            return;
+        }
+
+        if (terrainChunkEntityBuffer.Length > 0)
+        {
+            // destroy the renderers
+            state.EntityManager.DestroyEntity(terrainChunkEntityBuffer.AsNativeArray().Reinterpret<Entity>());
+            terrainChunkEntityBuffer.Clear();
+
+            // destroy the chunk renderers
+            // it needs to dispose MeshChunkData...
+
+            // destroy individual renderers
+        }
+
+        var chunkDimension = mapComponent.ChunkDimension;
+
+        var chunkRendererEntities = state.EntityManager.Instantiate(rendererPrefabEntities.chunkTileRenderer,
+            chunkDimension.x * chunkDimension.y, Allocator.Temp);
+
+        var chunkIndex = 0;
+
+        for (int i = 0; i < chunkDimension.x; i++)
+        {
+            for (int j = 0; j < chunkDimension.y; j++)
+            {
+                state.EntityManager.SetName(chunkRendererEntities[chunkIndex], "Terrain[" + i + "][" + j + "]");
+                terrainChunkEntityBuffer.Add(new ChunkRendererEntityBuffer { Value = chunkRendererEntities[chunkIndex++] });
+            }
+        }
     }
 
     public void OnStopRunning (ref SystemState state)
@@ -172,6 +219,103 @@ public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
         materialMeshInfoComponent.ValueRW.MeshID = entitiesGraphicsSystem.RegisterMesh(mesh);
     }
 
+    private int GetHeightIndex (int x, int y)
+    {
+        return x * MapHeightWidth + y;
+    }
+
+    private float RandomFloat ()
+    {
+        return RandomValue.NextFloat() * 2 - 1;
+    }
+
+    private void DiamondSquareExecute (int size, float roughness, ref float maxValue, ref float minValue)
+    {
+        int half = size / 2;
+        if (half < 1)
+        {
+            return;
+        }
+
+        for (int x = half; x < MapHeightWidth; x += size)
+        {
+            for (int y = half; y < MapHeightWidth; y += size)
+            {
+                DiamondStep(x, y, half, roughness, ref maxValue, ref minValue);
+            }
+        }
+
+        DiamondSquareExecute(half, roughness / 2, ref maxValue, ref minValue);
+    }
+
+    private void DiamondStep (int x, int y, int half, float roughness, ref float maxValue, ref float minValue)
+    {
+        var value = 0f;
+        value += CurrentHeight[GetHeightIndex(x + half, y - half)];
+        value += CurrentHeight[GetHeightIndex(x - half, y + half)];
+        value += CurrentHeight[GetHeightIndex(x + half, y + half)];
+        value += CurrentHeight[GetHeightIndex(x - half, y - half)];
+
+        value /= 4;
+        value += RandomFloat() * roughness;
+
+        if (value > maxValue)
+        {
+            maxValue = value;
+        }
+        if (value < minValue)
+        {
+            minValue = value;
+        }
+
+        CurrentHeight[GetHeightIndex(x, y)] = value;
+
+        SquareStep(x - half, y, half, roughness, ref maxValue, ref minValue);
+        SquareStep(x + half, y, half, roughness, ref maxValue, ref minValue);
+        SquareStep(x, y - half, half, roughness, ref maxValue, ref minValue);
+        SquareStep(x, y + half, half, roughness, ref maxValue, ref minValue);
+    }
+
+    private void SquareStep (int x, int y, int half, float roughness, ref float maxValue, ref float minValue)
+    {
+        var value = 0f;
+        var count = 0;
+        if (x - half >= 0)
+        {
+            value += CurrentHeight[GetHeightIndex(x - half, y)];
+            count++;
+        }
+        if (x + half < MapHeightWidth)
+        {
+            value += CurrentHeight[GetHeightIndex(x + half, y)];
+            count++;
+        }
+        if (y - half >= 0)
+        {
+            value += CurrentHeight[GetHeightIndex(x, y - half)];
+            count++;
+        }
+        if (y + half < MapHeightWidth)
+        {
+            value += CurrentHeight[GetHeightIndex(x, y + half)];
+            count++;
+        }
+
+        value /= count;
+        value += RandomFloat() * roughness;
+
+        if (value > maxValue)
+        {
+            maxValue = value;
+        }
+        if (value < minValue)
+        {
+            minValue = value;
+        }
+
+        CurrentHeight[GetHeightIndex(x, y)] = value;
+    }
+
     private void GenerateTerrain (ref SystemState state, RefRW<ControllerComponent> controllerData)
     {
         var terrainEntity = SystemAPI.GetSingleton<RendererPrefabEntities>().tilePrefab;
@@ -185,6 +329,8 @@ public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
         var groundMeshArray = Mesh.AllocateWritableMeshData(groundMesh);
         var groundData = groundMeshArray[0];
 
+        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
+
         var quadsCount = (mapComponent.TileDimension.x * 2) + (mapComponent.TileDimension.y * 2);
         var vertexCount = quadsCount * 4; 
         var indexCount = quadsCount * 6;
@@ -192,6 +338,57 @@ public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
         groundData.SetVertexBufferParams(vertexCount, meshBlobInfoComponent.meshInfoBlob.Value.attributes.ToArray());
         groundData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
 
+        CurrentHeight = new NativeArray<float>(mapHeights.Length, Allocator.TempJob);
+
+        MapHeightWidth = mapComponent.TileDimension.x + 1;
+
+        RandomValue = new Unity.Mathematics.Random(randomValueSeed);
+
+        var a = CurrentHeight[GetHeightIndex(0, 0)] = RandomValue.NextFloat() * mapComponent.MaxLevel;
+        var b = CurrentHeight[GetHeightIndex(MapHeightWidth - 1, 0)] = RandomValue.NextFloat() * mapComponent.MaxLevel;
+        var c = CurrentHeight[GetHeightIndex(0, MapHeightWidth - 1)] = RandomValue.NextFloat() * mapComponent.MaxLevel;
+        var d = CurrentHeight[GetHeightIndex(MapHeightWidth - 1, MapHeightWidth - 1)] = RandomValue.NextFloat() * mapComponent.MaxLevel;
+
+        UnityEngine.Debug.LogWarning("a: " + a + " b: " + b + " c: " + c + " d: " + d);
+
+        var maxValue = float.MinValue;
+        var minValue = float.MaxValue;
+
+        DiamondSquareExecute(MapHeightWidth, mapComponent.Roughness, ref maxValue, ref minValue);
+
+        //UnityEngine.Debug.LogWarning("Min: " + minValue + " Max: " + maxValue + " Dif: " + (maxValue + ((minValue >= 0) ? -minValue : math.abs(minValue))));
+
+        for (int x = 0; x < MapHeightWidth; x++)
+        {
+            for (int y = 0; y < MapHeightWidth; y++)
+            {
+                var heightIndex = GetHeightIndex(x, y);
+                var heightValue = math.unlerp(minValue, maxValue, CurrentHeight[heightIndex]) * mapComponent.MaxLevel;
+                if (heightValue >= mapComponent.MaxLevel)
+                {
+                    heightValue = mapComponent.MaxLevel - 1;
+                }
+                if (heightValue < 0f)
+                {
+                    heightValue = 0;
+                }
+                mapHeights[heightIndex] = (int)math.floor(heightValue);
+  
+                //if (heightValue <= -mapComponent.MaxDepth)
+                //{
+                //    heightValue = -mapComponent.MaxDepth + 1;
+                //}
+             
+                //mapHeights[heightIndex] = heightValue >= 0 ? (int)math.floor(heightValue) : (int)math.ceil(heightValue);
+            }
+        }
+
+        CreateBorderingGround(groundData, ref mapHeights);
+
+        CurrentHeight.Dispose();
+
+
+        /*
         var generateTerrainWithDiamondSquareJob = new GenerateTerrainWithDiamondSquareJob
         {
             MapHeights = mapHeights,
@@ -204,8 +401,9 @@ public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
             Roughness = (int)mapComponent.Roughness,
             GroundMeshData = groundData
         };
-
+        
         generateTerrainWithDiamondSquareJob.Schedule(state.Dependency).Complete();
+        */
 
         groundData.subMeshCount = 1;
         groundData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
@@ -215,9 +413,83 @@ public partial struct CreateTerrainSystem : ISystem, ISystemStartStop
         groundMesh.RecalculateNormals();
         groundMesh.RecalculateBounds();
 
-        SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().Map.SetMeshGround(groundMesh);
+        SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().Map.SetMeshGround(groundMesh, mapComponent.TileWidth, mapComponent.MaxDepth);
+    }
+
+    private void CreateBorderingGround (Mesh.MeshData groundData, ref NativeArray<int> Heights)
+    {
+        var vertexesArray = groundData.GetVertexData<float3>();
+        var indexArray = groundData.GetIndexData<uint>();
+
+        var vertexCount = 4;
+        var vIndex = 0;
+        var tIndex = 0;
+        var tValue = 0u;
+
+        for (int i = 0; i < MapHeightWidth - 1; i++)
+        {
+            CreateBordering(new int2(i, 0), new int2(i + 1, 0), tValue,
+                ref vIndex, ref tIndex, ref vertexesArray, ref indexArray, ref Heights);
+            tValue += (uint)vertexCount;
+            CreateBordering(new int2(i + 1, MapHeightWidth - 1), new int2(i, MapHeightWidth - 1), tValue,
+                ref vIndex, ref tIndex, ref vertexesArray, ref indexArray, ref Heights);
+            tValue += (uint)vertexCount;
+
+            CreateBordering(new int2(0, i + 1), new int2(0, i), tValue,
+                ref vIndex, ref tIndex, ref vertexesArray, ref indexArray, ref Heights);
+            tValue += (uint)vertexCount;
+            CreateBordering(new int2(MapHeightWidth - 1, i), new int2(MapHeightWidth - 1, i + 1), tValue,
+                ref vIndex, ref tIndex, ref vertexesArray, ref indexArray, ref Heights);
+            tValue += (uint)vertexCount;
+        }
+    }
+
+    private void CreateBordering (int2 positionA, int2 positionB, uint tValue, ref int vIndex, ref int tIndex,
+        ref NativeArray<float3> vertexesArray, ref NativeArray<uint> indexArray, ref NativeArray<int> Heights)
+    {
+        var v0 = new float3(positionA.x, -1, positionA.y) * mapComponent.TileWidth;
+        vertexesArray[vIndex++] = v0;
+        vertexesArray[vIndex++] = float3.zero;
+        vertexesArray[vIndex++] = new float3(0f, 0f, 0f);
+
+        var v1 = new float3(positionB.x, -1, positionB.y) * mapComponent.TileWidth;
+        vertexesArray[vIndex++] = v1;
+        vertexesArray[vIndex++] = float3.zero;
+        vertexesArray[vIndex++] = new float3(1f, 0f, 0f);
+
+        vertexesArray[vIndex++] = v1.WithY(Heights[GetHeightIndex(positionB.x, positionB.y)] * mapComponent.TileWidth);
+        vertexesArray[vIndex++] = float3.zero;
+        vertexesArray[vIndex++] = new float3(1f, 1f, 0f);
+
+        vertexesArray[vIndex++] = v0.WithY(Heights[GetHeightIndex(positionA.x, positionA.y)] * mapComponent.TileWidth);
+        vertexesArray[vIndex++] = float3.zero;
+        vertexesArray[vIndex++] = new float3(0f, 1f, 0f);
+
+        indexArray[tIndex++] = tValue;
+        indexArray[tIndex++] = tValue + 2;
+        indexArray[tIndex++] = tValue + 1;
+        indexArray[tIndex++] = tValue;
+        indexArray[tIndex++] = tValue + 3;
+        indexArray[tIndex++] = tValue + 2;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 [BurstCompile]

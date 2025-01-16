@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 [UpdateBefore(typeof(GetChunksFromRectSystem))]
 public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 {
-    private MapComponent mapComponent;
+    private MapComponent2 mapComponent;
     private MeshBlobDataComponent meshBlobDataComponent;
     private MeshBlobInfoComponent meshBlobInfoComponent;
     private MeshBlobTileTerrainMappingComponent meshBlobTileTerrainMappingComponent;
@@ -26,7 +26,7 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 
     public void OnCreate (ref SystemState state)
     {
-        state.RequireForUpdate<MapComponent>();
+        state.RequireForUpdate<MapComponent2>();
         state.RequireForUpdate<ControllerComponent>();
         //state.RequireForUpdate<ModelDataEntityBuffer>();
         //state.RequireForUpdate<RectChunkEntityBuffer>();
@@ -39,7 +39,7 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 
     public void OnStartRunning (ref SystemState state)
     {
-        mapComponent = SystemAPI.GetSingleton<MapComponent>();
+        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
 
         worldPosition = float2.zero;
         currentTilePosition = int2.zero;

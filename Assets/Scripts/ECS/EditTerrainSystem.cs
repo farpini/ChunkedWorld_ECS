@@ -12,12 +12,12 @@ using UnityEngine.Rendering;
 [UpdateAfter(typeof(CreateTerrainSystem))]
 public partial struct EditTerrainSystem : ISystem, ISystemStartStop
 {
-    private MapComponent mapComponent;
+    private MapComponent2 mapComponent;
     private Entity terrainEntity;
 
     public void OnCreate (ref SystemState state)
     {
-        state.RequireForUpdate<MapComponent>();
+        state.RequireForUpdate<MapComponent2>();
         state.RequireForUpdate<ControllerComponent>();
         state.RequireForUpdate<ModelDataEntityBuffer>();
         //state.RequireForUpdate<TerrainComponent>();
@@ -42,7 +42,7 @@ public partial struct EditTerrainSystem : ISystem, ISystemStartStop
 
     public void OnStartRunning (ref SystemState state)
     {
-        mapComponent = SystemAPI.GetSingleton<MapComponent>();
+        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
 
         var mapTileComponent = SystemAPI.GetSingletonRW<MapTileComponent>();
         var mapTiles = mapTileComponent.ValueRW.TileData;

@@ -8,18 +8,14 @@ using UnityEngine.UI;
 
 public class MainController : MonoBehaviour
 {
-    [SerializeField] private MapSO mapData;
     [SerializeField] private Map map;
     [SerializeField] private RectView rectView;
-    [SerializeField] private TMP_Dropdown modelDropDown;
-    [SerializeField] private Button modelCreateButton;
-    [SerializeField] private Button modelRemoveButton;
-    [SerializeField] private Button generateTerrainButton;
-    [SerializeField] private int mapRoughness;
-    [SerializeField] private int mapHeight;
-    [SerializeField] private int mapDepth;
+    [SerializeField] private TerrainGeneratorPanel terrainGeneratorPanel;
+    [SerializeField] private Button terrainGeneratorPanelButton;
 
     [SerializeField] private ControllerState state;
+
+    private MapComponent2 mapComponent;
 
     private int modelCount;
     private int currentModelSelectedId;
@@ -35,10 +31,13 @@ public class MainController : MonoBehaviour
         currentModelSelectedId = -1;
         rectView.Show(false);
 
-        modelCreateButton.onClick.AddListener(() => OnModelCreateButtonClicked());
-        modelRemoveButton.onClick.AddListener(() => OnModelRemoveButtonClicked());
-        generateTerrainButton.onClick.AddListener(() => OnGenerateTerrainButtonClicked());
-        modelDropDown.onValueChanged.AddListener((int v) => OnModelSelectionChanged(v));
+        //modelCreateButton.onClick.AddListener(() => OnModelCreateButtonClicked());
+        //modelRemoveButton.onClick.AddListener(() => OnModelRemoveButtonClicked());
+        //generateTerrainButton.onClick.AddListener(() => OnGenerateTerrainButtonClicked());
+        //modelDropDown.onValueChanged.AddListener((int v) => OnModelSelectionChanged(v));
+        terrainGeneratorPanelButton.onClick.AddListener(() => OnTerrainGeneratorPanelButtonClicked());
+
+        terrainGeneratorPanel.OnTerrainGeneratorButtonClicked += OnTerrainGeneratorButtonClicked;
     }
 
     private void Start ()
@@ -54,15 +53,20 @@ public class MainController : MonoBehaviour
         CreateControllerEntity();
         UI_LoadModels(modelDataEntityBuffer);
 
+        map.gameObject.SetActive(true);
+
         modelDataEntityQuery.Dispose();
     }
 
     private void OnDestroy ()
     {
-        modelCreateButton.onClick.RemoveAllListeners();
-        modelRemoveButton.onClick.RemoveAllListeners();
-        generateTerrainButton.onClick.RemoveAllListeners();
-        modelDropDown.onValueChanged.RemoveAllListeners();
+        //modelCreateButton.onClick.RemoveAllListeners();
+        //modelRemoveButton.onClick.RemoveAllListeners();
+        //generateTerrainButton.onClick.RemoveAllListeners();
+        //modelDropDown.onValueChanged.RemoveAllListeners();
+        terrainGeneratorPanelButton.onClick.RemoveAllListeners();
+
+        terrainGeneratorPanel.OnTerrainGeneratorButtonClicked -= OnTerrainGeneratorButtonClicked;
     }
 
     private void Update ()
@@ -76,8 +80,8 @@ public class MainController : MonoBehaviour
     private void CreateControllerEntity ()
     {
         controllerEntity = entityManager.CreateEntity(
-            typeof(ControllerComponent), 
-            typeof(MapComponent), 
+            typeof(ControllerComponent),
+            typeof(MapComponent2),
             typeof(MapTileComponent), 
             typeof(RectChunkEntityBuffer),
             typeof(RefGameObject));
@@ -93,15 +97,14 @@ public class MainController : MonoBehaviour
             StartTile = int2.zero
         });
 
-        var mapComponent = new MapComponent
+        mapComponent = new MapComponent2
         {
-            TileDimension = mapData.MapDimension,
-            TileWidth = mapData.TileWidth,
-            ChunkDimension = mapData.ChunkDimension,
-            ChunkWidth = mapData.ChunkWidth,
-            MaxHeight = mapHeight,
-            MaxDepth = mapDepth,
-            Roughness = mapRoughness
+            TileDimension = new int2(32, 32),
+            TileWidth = 4,
+            ChunkWidth = 32,
+            MaxHeight = 4,
+            MaxDepth = 1,
+            Roughness = 0.25f
         };
 
         entityManager.SetComponentData(controllerEntity, mapComponent);
@@ -110,8 +113,8 @@ public class MainController : MonoBehaviour
 
         entityManager.SetComponentData(controllerEntity, new MapTileComponent
         {
-            TileData = new NativeArray<TileData>(mapData.MapDimension.x * mapData.MapDimension.y, Allocator.Persistent),
-            TileHeightMap = new NativeArray<int>((mapData.MapDimension.x + 1) * (mapData.MapDimension.y + 1), Allocator.Persistent)
+            TileData = new NativeArray<TileData>(mapComponent.TileDimension.x * mapComponent.TileDimension.y, Allocator.Persistent),
+            TileHeightMap = new NativeArray<int>((mapComponent.TileDimension.x + 1) * (mapComponent.TileDimension.y + 1), Allocator.Persistent)
         });
 
         entityManager.SetComponentData(controllerEntity, new RefGameObject
@@ -121,6 +124,26 @@ public class MainController : MonoBehaviour
         });
 
         entityManager.SetName(controllerEntity, "ControllerEntity");
+    }
+
+    private void OnTerrainGeneratorPanelButtonClicked ()
+    {
+        var isPanelActive = terrainGeneratorPanel.gameObject.activeSelf;
+        terrainGeneratorPanel.gameObject.SetActive(!isPanelActive);
+        if (!isPanelActive)
+        {
+            Debug.Log("UPDATE");
+            terrainGeneratorPanel.UpdatePanel(mapComponent);
+        }
+    }
+
+    private void OnTerrainGeneratorButtonClicked (int mapSize, int maxHeight, float roughness, int maxDepth)
+    {
+        Debug.LogWarning("OnTerrainGeneratorButtonClicked");
+
+
+
+
     }
 
     private void OnModelCreateButtonClicked ()
@@ -167,6 +190,7 @@ public class MainController : MonoBehaviour
     {
         CancelCreation();
 
+        /*
         state = ControllerState.GenerateTerrain;
 
         entityManager.SetComponentData(controllerEntity, new ControllerComponent
@@ -182,9 +206,11 @@ public class MainController : MonoBehaviour
 
         var mapComponent = entityManager.GetComponentData<MapComponent>(controllerEntity);
         mapComponent.Roughness = mapRoughness;
+        mapComponent.Smoothness = mapSmoothness;
         mapComponent.MaxHeight = mapHeight;
         mapComponent.MaxDepth = mapDepth;
         entityManager.SetComponentData<MapComponent>(controllerEntity, mapComponent);
+        */
     }
 
     private void OnModelSelectionChanged (int modelSelected)
@@ -225,7 +251,7 @@ public class MainController : MonoBehaviour
             dropDownOptions.Add(modelName);
         }
 
-        modelDropDown.AddOptions(dropDownOptions);
+        //modelDropDown.AddOptions(dropDownOptions);
         
         if (dropDownOptions.Count > 0 )
         {

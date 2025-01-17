@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 [UpdateBefore(typeof(GetChunksFromRectSystem))]
 public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 {
-    private MapComponent2 mapComponent;
+    private MapComponent mapComponent;
     private MeshBlobDataComponent meshBlobDataComponent;
     private MeshBlobInfoComponent meshBlobInfoComponent;
     private MeshBlobTileTerrainMappingComponent meshBlobTileTerrainMappingComponent;
@@ -19,14 +19,14 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
     private int4 rect;
     public bool isRectValid;
     private Ray currentRay;
-    private Plane mapPlane;
+    private Plane mapPlaneZero;
     private bool isDragging;
     private float2 INVALID_FLOAT2;
     private int2 INVALID_INT2;
 
     public void OnCreate (ref SystemState state)
     {
-        state.RequireForUpdate<MapComponent2>();
+        state.RequireForUpdate<MapComponent>();
         state.RequireForUpdate<ControllerComponent>();
         //state.RequireForUpdate<ModelDataEntityBuffer>();
         //state.RequireForUpdate<RectChunkEntityBuffer>();
@@ -39,7 +39,7 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 
     public void OnStartRunning (ref SystemState state)
     {
-        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
+        mapComponent = SystemAPI.GetSingleton<MapComponent>();
 
         worldPosition = float2.zero;
         currentTilePosition = int2.zero;
@@ -47,7 +47,7 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
         rect = new int4(int2.zero, int2.zero);
         isDragging = false;
         isRectValid = false;
-        mapPlane = new Plane(Vector3.up, Vector3.zero);
+        mapPlaneZero = new Plane(Vector3.up, Vector3.zero);
         INVALID_FLOAT2 = new float2(-1f, -1f);
         INVALID_INT2 = new int2(-1, -1);
 
@@ -56,7 +56,7 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
         meshBlobInfoComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(terrainEntity);
         meshBlobTileTerrainMappingComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobTileTerrainMappingComponent>(terrainEntity);
 
-        //chunkRendererIndexesToInstantiate = new NativeList<int2>(mapComponent.ChunkDimension.x * mapComponent.ChunkDimension.y, Allocator.Persistent);
+        //chunkRendererIndexesToInstantiate = new NativeList<int2>(currentMapComponent.ChunkDimension.x * currentMapComponent.ChunkDimension.y, Allocator.Persistent);
     }
 
     public void OnStopRunning (ref SystemState state)
@@ -73,24 +73,18 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
             return;
         }
 
-        GetWorldPositions(ref state);
+        mapComponent = SystemAPI.GetSingleton<MapComponent>();
+
+        var mapTiles = SystemAPI.GetSingletonRW<MapTileComponent>().ValueRW.TileData;
+
+        GetWorldPositions(ref state, ref mapTiles);
 
         if (Input.GetMouseButtonDown(0))
         {
             if (!EventSystem.current.IsPointerOverGameObject())
             {
                 isDragging = true;
-
-                var mapTiles = SystemAPI.GetSingletonRW<MapTileComponent>().ValueRW.TileData;
-
-                if (GetTilePositionIntersection(ref mapTiles, out var tilePositionIntersected, out var tileIndexIntersected))
-                {
-                    startDragTilePosition = tilePositionIntersected;
-                }
-                else
-                {
-                    startDragTilePosition = currentTilePosition;
-                }
+                startDragTilePosition = currentTilePosition;
             }
         }
         else if (Input.GetMouseButtonUp(0))
@@ -150,107 +144,13 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
                 */
             }
         }
-
-
     }
 
-    private void GetWorldPositions (ref SystemState state)
+    private bool GetTilePositionIntersection (ref NativeArray<TileData> mapTiles, Ray ray, int2 rectPosition, int2 rectSize,
+        out int2 tilePositionIntersected, out int tileIndexIntersected)
     {
-        currentRay = Camera.main.ScreenPointToRay(Input.mousePosition);
-
-        var intersectPoint = math.up();
-
-        if (mapPlane.Raycast(currentRay, out float distance))
-        {
-            intersectPoint = currentRay.GetPoint(distance);
-        }
-
-        var lastTilePosition = currentTilePosition;
-
-        isRectValid = false;
-
-        worldPosition = new float2(intersectPoint.x, intersectPoint.z);
-
-        if (intersectPoint.y < 1f && IsWorldPositionValid(worldPosition))
-        {
-            currentTilePosition = new int2((int)(worldPosition.x / mapComponent.TileWidth), (int)(worldPosition.y / mapComponent.TileWidth));
-
-            if (lastTilePosition.Equals(currentTilePosition))
-            {
-                OnTilePositionChanged(ref state, true);
-            }
-        }
-        else
-        {
-            worldPosition = INVALID_FLOAT2;
-            currentTilePosition = INVALID_INT2;
-
-            if (lastTilePosition.Equals(currentTilePosition))
-            {
-                OnTilePositionChanged(ref state, false);
-            }
-        }
-    }
-
-    private void OnTilePositionChanged (ref SystemState state, bool positionValid)
-    {
-        if (EventSystem.current.IsPointerOverGameObject())
-        {
-            return;
-        }
-
-        var rectPosition = int2.zero;
-        var rectSize = int2.zero;
-
-        var mapTileComponent = SystemAPI.GetSingletonRW<MapTileComponent>();
-
-        var mapTiles = mapTileComponent.ValueRW.TileData;
-        var mapHeights = mapTileComponent.ValueRW.TileHeightMap;
-
-        if (GetTilePositionIntersection(ref mapTiles, out var tilePositionIntersected, out var tileIndexIntersected))
-        {
-            if (tileIndexIntersected >= 0)
-            {
-                var endDragTilePosition = tilePositionIntersected;
-
-                if (isDragging)
-                {
-                    GetRectFromTwoPoints(startDragTilePosition, endDragTilePosition, out rectPosition, out rectSize);
-                    //rect = new RectInt(rectPosition, rectSize);
-                    //rectView.SetRect(rect, mapData.TileWidth);
-                    //isModelEditValid = tilePositionValid && IsWorldPositionValid(startDragTilePosition);
-                    //rectView.Show(isModelEditValid);
-                }
-                else
-                {
-                    rectPosition = endDragTilePosition;
-                    rectSize = new int2(1, 1);
-                    //isModelEditValid = tilePositionValid;
-                    //rect = new RectInt(currentTilePosition, Vector2Int.one);
-                    //rectView.SetRect(rect, mapData.TileWidth);
-                    //rectView.Show(isModelEditValid);
-                }
-
-                //Debug.Log(rectPosition + " " + rectSize);
-
-                SetRectView(ref state, rectPosition, rectSize, ref mapTiles, ref mapHeights);
-
-                rect = new int4(rectPosition, rectSize);
-                isRectValid = true;
-            }
-        }
-    }
-
-    private bool GetTilePositionIntersection (ref NativeArray<TileData> mapTiles, out int2 tilePositionIntersected,
-        out int tileIndexIntersected)
-    {
-        var rectOffset = new int2(2, 2);
-        var rectPosition = currentTilePosition - rectOffset;
-        var rectSize = rectPosition + (rectOffset * 2);
-
-        var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        tileIndexIntersected = -1;
         tilePositionIntersected = int2.zero;
+        tileIndexIntersected = 0;
 
         ref var vertexes = ref meshBlobDataComponent.meshDataBlob.Value.vertexes;
         ref var indexes = ref meshBlobDataComponent.meshDataBlob.Value.indexes;
@@ -260,14 +160,21 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
             for (int j = 0; j < rectSize.y; j++)
             {
                 var tilePosition = rectPosition + new int2(i, j);
-                var tileIndex = mapComponent.GetTileIndexFromTilePosition(tilePosition);
 
-                if (tileIndex < 0 || tileIndex >= mapTiles.Length)
+                if (!mapComponent.IsTilePositionValid(tilePosition))
                 {
                     continue;
                 }
 
+                var tileIndex = mapComponent.GetTileIndexFromTilePosition(tilePosition);
+
                 var tileData = mapTiles[tileIndex];
+
+                //if (tileData.terrainLevel < mapComponent.MaxDepth)
+                //{
+                //    continue;
+                //}
+
                 var tileWorldPosition = new float3(tilePosition.x, tileData.terrainLevel, tilePosition.y);
 
                 if (IntersectTile(ray, tileData.terrainType, tileWorldPosition, ref vertexes, ref indexes))
@@ -282,7 +189,86 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
         return false;
     }
 
-    private void SetRectView (ref SystemState state, int2 rectPosition, int2 rectSize, ref NativeArray<TileData> mapTiles, ref NativeArray<int> mapHeights)
+    private void GetWorldPositions (ref SystemState state, ref NativeArray<TileData> mapTiles)
+    {
+        currentRay = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+        var intersectPointOnPlaneZero = float3.zero;
+        var intersectPointOnPlaneMaxHeight = float3.zero;
+
+        if (mapPlaneZero.Raycast(currentRay, out var distance))
+        {
+            intersectPointOnPlaneZero = currentRay.GetPoint(distance);
+        }
+
+        var mapPlaneMaxHeight = new Plane(Vector3.up, new Vector3(0f, mapComponent.MaxHeight * mapComponent.TileWidth));
+
+        if (mapPlaneMaxHeight.Raycast(currentRay, out distance))
+        {
+            intersectPointOnPlaneMaxHeight = currentRay.GetPoint(distance);
+        }
+
+        var lastTilePosition = currentTilePosition;
+
+        isRectValid = false;
+
+        var pA = mapComponent.GetTilePositionFromPosition(intersectPointOnPlaneZero);
+        var pB = mapComponent.GetTilePositionFromPosition(intersectPointOnPlaneMaxHeight);
+
+        GetRectFromTwoPoints(pA, pB, out var rectPosition, out var rectSize);
+
+        if (GetTilePositionIntersection(ref mapTiles, currentRay, rectPosition, rectSize, out var tilePositionOver, out var tileIndexOver))
+        {
+            currentTilePosition = tilePositionOver;
+
+            if (lastTilePosition.Equals(currentTilePosition))
+            {
+                OnTilePositionChanged(ref state, ref mapTiles, true);
+            }
+        }
+        else
+        {
+            worldPosition = INVALID_FLOAT2;
+            currentTilePosition = INVALID_INT2;
+
+            if (lastTilePosition.Equals(currentTilePosition))
+            {
+                OnTilePositionChanged(ref state, ref mapTiles, false);
+            }
+        }
+    }
+
+    private void OnTilePositionChanged (ref SystemState state, ref NativeArray<TileData> mapTiles, bool isValid)
+    {
+        if (EventSystem.current.IsPointerOverGameObject())
+        {
+            return;
+        }
+
+        var mapTileComponent = SystemAPI.GetSingletonRW<MapTileComponent>();
+        var mapHeights = mapTileComponent.ValueRW.TileHeightMap;
+
+        var rectPosition = currentTilePosition;
+        var rectSize = new int2(1, 1);
+
+        if (isDragging)
+        {
+            GetRectFromTwoPoints(startDragTilePosition, currentTilePosition, out rectPosition, out rectSize);
+
+            if (!mapComponent.IsTilePositionValid(startDragTilePosition))
+            {
+                isValid = false;
+            }
+        }
+
+        if (isValid)
+        {
+            SetRectView(ref state, rectPosition, rectSize, mapTileComponent.ValueRO.MapHeightMaxMinValue, ref mapTiles, ref mapHeights);
+        }
+    }
+
+    private void SetRectView (ref SystemState state, int2 rectPosition, int2 rectSize, float2 mapHeightMaxMinValue, 
+        ref NativeArray<TileData> mapTiles, ref NativeArray<float> mapHeights)
     {
         var rectView = SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().RectView;
         var mesh = new Mesh();
@@ -314,10 +300,10 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
                 var tileIndex = mapComponent.GetTileIndexFromTilePosition(tilePosition);
 
                 var heights = int4.zero;
-                heights.x = mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition)];
-                heights.y = mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetEast())];
-                heights.z = mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetNorthEast())];
-                heights.w = mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetNorth())];
+                heights.x = mapComponent.GetHeightNormalized(mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition)], mapHeightMaxMinValue);
+                heights.y = mapComponent.GetHeightNormalized(mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetEast())], mapHeightMaxMinValue);
+                heights.z = mapComponent.GetHeightNormalized(mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetNorthEast())], mapHeightMaxMinValue);
+                heights.w = mapComponent.GetHeightNormalized(mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetNorth())], mapHeightMaxMinValue);
                 var heightMin = math.min(heights.x, math.min(heights.y, math.min(heights.z, heights.w)));
 
                 var tileData = mapTiles[tileIndex];
@@ -360,40 +346,6 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
                 vertexIndex++;
             }
         }
-
-        /*
-
-        var tileTerrainType = mapTiles[tileIndexIntersected].terrainType;
-
-        ref var vertexBlobArray = ref meshBlobDataComponent.meshDataBlob.Value.vertexes;
-        ref var indexBlobArray = ref meshBlobDataComponent.meshDataBlob.Value.indexes;
-
-        var tileWorldPosition = new float3(currentTilePosition.x, mapTiles[tileIndexIntersected].tileHeight, currentTilePosition.y);
-
-        var vertexTileCount = meshBlobInfoComponent.vertexCount;
-        var vStart = 0;
-        var vRead = vertexTileCount * meshBlobInfoComponent.vertexAttributeDimension * tileTerrainType;
-
-        for (int v = 0; v < vertexTileCount; v++)
-        {
-            // Position
-            vertexesArray[vStart++] = (vertexBlobArray[vRead++] + tileWorldPosition) * mapComponent.TileWidth;
-            // Normal
-            vertexesArray[vStart++] = vertexBlobArray[vRead++];
-            // UV
-            vertexesArray[vStart++] = vertexBlobArray[vRead++];
-        }
-
-        var indexTileCount = meshBlobInfoComponent.indexCount;
-        var tRead = indexTileCount * tileTerrainType;
-        var tStart = 0 * indexTileCount;
-        var tValue = 0 * vertexTileCount;
-
-        for (int t = 0; t < indexTileCount; t++)
-        {
-            indexArray[tStart++] = indexBlobArray[tRead++] + (uint)tValue;
-        }
-        */
 
         rectViewMesh.subMeshCount = 1;
         rectViewMesh.SetSubMesh(0, new SubMeshDescriptor(0, tileCount * meshBlobInfoComponent.indexCount));

@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using MeshGenerator;
 using BlobHashMaps;
-using static Unity.VisualScripting.Member;
+using System.IO;
 
 public class MeshDataAuthoring : MonoBehaviour
 {
@@ -47,6 +47,8 @@ public class MeshDataAuthoring : MonoBehaviour
 
 public class ModelBaker : Baker<Model>
 {
+    string path = Application.dataPath + "/Icons";
+
     public override void Bake (Model authoring)
     {
         var entity = GetEntity(authoring, TransformUsageFlags.None);
@@ -61,6 +63,21 @@ public class ModelBaker : Baker<Model>
         for (int j = 0; j < modelNameArray.Length; j++)
         {
             modelNameArray[j] = authoring.gameObject.name[j];
+        }
+
+        UnityEditor.EditorUtility.SetDirty(authoring.gameObject);
+        Texture2D icon = UnityEditor.AssetPreview.GetAssetPreview(authoring.gameObject);
+
+        if (icon != null)
+        {
+            var iconByteArray = icon.GetRawTextureData();
+
+            var modelIconArray = blobBuilder.Allocate<byte>(ref blobData.meshIcon, iconByteArray.Length);
+
+            for (int j = 0; j < modelIconArray.Length; j++)
+            {
+                modelIconArray[j] = iconByteArray[j];
+            }
         }
 
         var vertexAttributes = authoring.Mesh.GetVertexAttributes();

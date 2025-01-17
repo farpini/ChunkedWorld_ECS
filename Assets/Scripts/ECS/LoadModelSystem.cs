@@ -4,7 +4,7 @@ public partial struct LoadModelSystem : ISystem
 {
     public void OnCreate (ref SystemState state)
     {
-        state.RequireForUpdate<MapComponent2>();
+        state.RequireForUpdate<MapComponent>();
         state.RequireForUpdate<ControllerComponent>();
         state.RequireForUpdate<ModelDataEntityBuffer>();
     }
@@ -19,14 +19,14 @@ public partial struct LoadModelSystem : ISystem
 
     public void OnUpdate (ref SystemState state)
     {
-        var mapComponent = SystemAPI.GetSingleton<MapComponent2>();
+        var mapComponent = SystemAPI.GetSingleton<MapComponent>();
 
         SetupRenderingModels(ref state, mapComponent);
 
         state.Enabled = false;
     }
 
-    private void SetupRenderingModels (ref SystemState state, MapComponent2 mapComponent)
+    private void SetupRenderingModels (ref SystemState state, MapComponent mapComponent)
     {
         var chunkDimension = mapComponent.ChunkDimension;
 

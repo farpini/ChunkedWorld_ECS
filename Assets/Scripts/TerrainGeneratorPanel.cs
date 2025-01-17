@@ -11,26 +11,29 @@ public class TerrainGeneratorPanel : MonoBehaviour
     [SerializeField] private Slider landHeight;
     [SerializeField] private Slider landRoughness;
     [SerializeField] private Slider waterDepth;
-    [SerializeField] private int[] mapSizeOptions;
+    [SerializeField] private MapSettings[] mapSettingOptions;
 
     private int currentMapSize;
     private int currentMapHeight;
     private float currentRoughness;
     private int currentWaterDepth;
 
+    public Action OnAnyUIEvent;
     public Action<int, int, float, int> OnTerrainGeneratorButtonClicked;
 
     private void Awake ()
     {
-        if (mapSizeOptions != null)
+        if (mapSettingOptions != null)
         {
             var optionsStr = new List<string>();
-            for (int i = 0; i < mapSizeOptions.Length; i++)
+            for (int i = 0; i < mapSettingOptions.Length; i++)
             {
-                optionsStr.Add(mapSizeOptions[i].ToString() + "x" + mapSizeOptions[i].ToString());
+                optionsStr.Add(mapSettingOptions[i].size.ToString() + "x" + mapSettingOptions[i].size.ToString());
             }
             mapSizeDropdown.AddOptions(optionsStr);
         }
+
+        OnMapSizeChanged(0);
 
         mapSizeDropdown.onValueChanged.AddListener((int v) => OnMapSizeChanged(v));
         generateButton.onClick.AddListener(() => OnMapGeneratorButtonClicked());
@@ -48,13 +51,13 @@ public class TerrainGeneratorPanel : MonoBehaviour
         waterDepth.onValueChanged.RemoveAllListeners();
     }
 
-    public void UpdatePanel (MapComponent2 mapData)
+    public void UpdatePanel (MapComponent mapData)
     {
-        for (int i = 0; i < mapSizeOptions.Length; i++)
+        for (int i = 0; i < mapSettingOptions.Length; i++)
         {
-            if (mapData.TileDimension.x == mapSizeOptions[i])
+            if (mapData.TileDimension.x == mapSettingOptions[i].size)
             {
-                currentMapSize = mapSizeOptions[i];
+                currentMapSize = mapSettingOptions[i].size;
                 mapSizeDropdown.value = i;
                 break;
             }
@@ -67,38 +70,65 @@ public class TerrainGeneratorPanel : MonoBehaviour
 
     private void OnMapSizeChanged (int value)
     {
-        currentMapSize = mapSizeOptions[value];
+        currentMapSize = mapSettingOptions[value].size;
 
-        landHeight.minValue = 1;
-        landHeight.maxValue = 4;
-        landHeight.value = 3;
+        landHeight.minValue = mapSettingOptions[value].heightInterval.x;
+        landHeight.maxValue = mapSettingOptions[value].heightInterval.y;
+        landHeight.value = mapSettingOptions[value].startHeight;
 
-        landRoughness.minValue = 0;
-        landRoughness.maxValue = 4;
-        landRoughness.value = 0.25f;
+        currentMapHeight = (int)landHeight.value;
 
-        waterDepth.minValue = 0;
-        waterDepth.maxValue = 3;
-        waterDepth.value = 1;
+        landRoughness.minValue = mapSettingOptions[value].roughnessInterval.x;
+        landRoughness.maxValue = mapSettingOptions[value].roughnessInterval.y;
+        landRoughness.value = mapSettingOptions[value].startRoughness;
+
+        currentRoughness = (int)landRoughness.value;
+
+        waterDepth.minValue = mapSettingOptions[value].depthInterval.x;
+        waterDepth.maxValue = mapSettingOptions[value].depthInterval.y;
+        waterDepth.value = mapSettingOptions[value].startDepth;
+
+        currentWaterDepth = (int)waterDepth.value;
+
+        OnAnyUIEvent?.Invoke();
     }
 
     private void OnLandHeightChanged (float value)
     {
         currentMapHeight = (int)value;
+
+        OnAnyUIEvent?.Invoke();
     }
 
     private void OnLandRoughnessChanged (float value)
     {
         currentRoughness = value;
+
+        OnAnyUIEvent?.Invoke();
     }
 
     private void OnWaterDepthChanged (float value)
     {
         currentWaterDepth = (int)value;
+
+        OnAnyUIEvent?.Invoke();
     }
 
     private void OnMapGeneratorButtonClicked ()
     {
+        OnAnyUIEvent?.Invoke();
         OnTerrainGeneratorButtonClicked?.Invoke(currentMapSize, currentMapHeight, currentRoughness, currentWaterDepth);
     }
+}
+
+[Serializable]
+public class MapSettings
+{
+    public int size;
+    public Vector2Int heightInterval;
+    public Vector2 roughnessInterval;
+    public Vector2Int depthInterval;
+    public int startHeight;
+    public float startRoughness;
+    public int startDepth;
 }

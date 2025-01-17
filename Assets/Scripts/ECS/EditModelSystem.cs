@@ -11,11 +11,11 @@ using UnityEngine.Rendering;
 
 public partial struct EditModelSystem : ISystem, ISystemStartStop
 {
-    private MapComponent2 mapComponent;
+    private MapComponent mapComponent;
 
     public void OnCreate (ref SystemState state)
     {
-        state.RequireForUpdate<MapComponent2>();
+        state.RequireForUpdate<MapComponent>();
         state.RequireForUpdate<ControllerComponent>();
         state.RequireForUpdate<ModelDataEntityBuffer>();
         state.RequireForUpdate<RectChunkEntityBuffer>();
@@ -27,7 +27,7 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
 
     public void OnStartRunning (ref SystemState state)
     {
-        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
+        mapComponent = SystemAPI.GetSingleton<MapComponent>();
     }
 
     public void OnStopRunning (ref SystemState state)
@@ -36,6 +36,7 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
 
     public void OnUpdate (ref SystemState state)
     {
+        /*
         var controllerData = SystemAPI.GetSingletonRW<ControllerComponent>();
 
         if (controllerData.ValueRO.OnRectSelecting)
@@ -76,6 +77,7 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
         rectBuffer.Clear();
 
         controllerData.ValueRW.State = ControllerState.None;
+        */
     }
 
     private void RemoveModelInChunks (ref SystemState state, int modelCount,

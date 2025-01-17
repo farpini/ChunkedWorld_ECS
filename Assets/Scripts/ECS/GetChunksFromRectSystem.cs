@@ -7,13 +7,13 @@ using Unity.Rendering;
 [UpdateBefore(typeof(EditModelSystem))]
 public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
 {
-    private MapComponent2 mapComponent;
+    private MapComponent mapComponent;
 
     private NativeList<int2> chunkRendererIndexesToInstantiate;
 
     public void OnCreate (ref SystemState state)
     {
-        state.RequireForUpdate<MapComponent2>();
+        state.RequireForUpdate<MapComponent>();
         state.RequireForUpdate<ControllerComponent>();
         state.RequireForUpdate<ModelDataEntityBuffer>();
         state.RequireForUpdate<RectChunkEntityBuffer>();
@@ -26,7 +26,7 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
 
     public void OnStartRunning (ref SystemState state)
     {
-        mapComponent = SystemAPI.GetSingleton<MapComponent2>();
+        mapComponent = SystemAPI.GetSingleton<MapComponent>();
 
         chunkRendererIndexesToInstantiate = new NativeList<int2>(mapComponent.ChunkDimension.x * mapComponent.ChunkDimension.y, Allocator.Persistent);
     }
@@ -38,6 +38,7 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
 
     public void OnUpdate (ref SystemState state)
     {
+        /*
         var controllerData = SystemAPI.GetSingletonRW<ControllerComponent>();
 
         if (controllerData.ValueRO.OnRectSelecting)
@@ -111,6 +112,7 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
                 chunkRendererIndexesToInstantiate.Clear();
             }
         }
+        */
     }
 
     private void InstantiateChunkRenderers (ref SystemState state, Entity modelEntity, int modelId)

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -10,7 +9,12 @@ public class Map : MonoBehaviour
 
     private static float scalePrecision = 9.999f;
 
-    public void Initialize (MapComponent2 mapData)
+    public void Initialize (MapComponent mapData)
+    {
+        SetMapTransform(mapData);
+    }
+
+    private void SetMapTransform (MapComponent mapData)
     {
         float2 unitDimension = mapData.UnitDimension;
 
@@ -27,11 +31,10 @@ public class Map : MonoBehaviour
         cameraController.SetMapData(mapData);
     }
 
-    public void SetMeshGround (Mesh mesh, int tileWidth, int depth)
+    public void SetMeshMap (Mesh mesh, MapComponent mapData)
     {
         groundRenderer.mesh = mesh;
 
-        waterTransform.localScale = new Vector3(scalePrecision, tileWidth * depth, scalePrecision);
-        waterTransform.localPosition = new Vector3(0f, (depth - 1) / 0.5f, 0f);
+        SetMapTransform(mapData);
     }
 }

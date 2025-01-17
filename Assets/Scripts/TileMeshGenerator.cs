@@ -7,8 +7,6 @@ namespace MeshGenerator
     {
         private static float3 UpNormal = new float3(0f, 1f, 0f);
 
-
-
         public static bool InsertTileTerrainType (TileTerrainType tileType, int vertexStart, int indexStart,
             ref BlobBuilderArray<float3> vertexesArray, ref BlobBuilderArray<uint> indexesArray)
         {

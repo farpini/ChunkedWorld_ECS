@@ -1,10 +1,8 @@
 using BlobHashMaps;
 using System;
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
 using UnityEngine.Rendering;
 
 public struct ControllerComponent : IComponentData
@@ -43,7 +41,7 @@ public struct TerrainComponent : IComponentData
 {
 }
 
-public struct MapComponent2 : IComponentData
+public struct MapComponent : IComponentData
 {
     public int2 TileDimension;
     public int TileWidth;
@@ -63,6 +61,11 @@ public struct MapComponent2 : IComponentData
         return tilePosition.x * TileDimension.y + tilePosition.y;
     }
 
+    public int2 GetTilePositionFromPosition (float3 worldPosition)
+    {
+        return (int2)new float2(math.round(worldPosition.xz / TileWidth));
+    }
+
     public int2 GetChunkFromTilePosition (int2 tilePosition)
     {
         return new int2(tilePosition.x / ChunkWidth, tilePosition.y / ChunkWidth);
@@ -78,16 +81,36 @@ public struct MapComponent2 : IComponentData
         return tileIndex >= 0 && (tileIndex < (TileDimension.x * TileDimension.y));
     }
 
+    public bool IsTilePositionValid (int2 tilePosition)
+    {
+        return tilePosition.x >= 0 && tilePosition.y >= 0 && tilePosition.x < TileDimension.x && tilePosition.y < TileDimension.y;
+    }
+
     public int GetHeigthMapIndexFromHeightMapPosition (int2 heighMapPosition)
     {
         return heighMapPosition.x * (TileDimension.y + 1) + heighMapPosition.y;
+    }
+
+    public int GetHeightNormalized (float heightValue, float2 heightMaxMinValue)
+    {
+        heightValue = math.unlerp(heightMaxMinValue.x, heightMaxMinValue.y, heightValue) * MaxLevel;
+        if (heightValue >= MaxLevel)
+        {
+            heightValue = MaxLevel - 1;
+        }
+        if (heightValue < 0f)
+        {
+            heightValue = 0;
+        }
+        return (int)math.floor(heightValue);
     }
 }
 
 public struct MapTileComponent : IComponentData, IDisposable
 {
     public NativeArray<TileData> TileData;
-    public NativeArray<int> TileHeightMap;
+    public NativeArray<float> TileHeightMap;
+    public float2 MapHeightMaxMinValue;
 
     public void Dispose ()
     {
@@ -129,7 +152,7 @@ public enum TileTerrainType
 
 public enum ControllerState
 {
-    None, CreateModel, RemoveModel, LowerTerrain, RaiseTerrain, LevelTerrain, GenerateTerrain
+    None, GenerateTerrain, UpdateTerrain, ChunkedModelRandomPlacement, ChunkedModelSelectPlacement
 }
 
 public struct RendererPrefabEntities : IComponentData
@@ -187,6 +210,7 @@ public struct MeshBlobInfoComponent : ISharedComponentData
 public struct MeshBlobInfo
 {
     public BlobArray<char> meshName;
+    public BlobArray<byte> meshIcon;
     public BlobArray<VertexAttributeDescriptor> attributes;
 }
 
@@ -204,16 +228,4 @@ public struct MeshBlobData
 public struct MeshBlobTileTerrainMappingComponent : ISharedComponentData
 {
     public BlobAssetReference<BlobHashMap<int4, int>> mapping;
-}
-
-
-public struct TerrainHeightMapSettings
-{
-    public float noiseScale;
-    public float frequency;
-    public float lacunarity;
-    public int octaves;
-    public float weight;
-    public float falloffSteepness;
-    public float falloffOffset;
 }

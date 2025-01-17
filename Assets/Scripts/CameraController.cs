@@ -64,12 +64,12 @@ public class CameraController : MonoBehaviour
         }
     }
 
-    public void SetMapData (MapComponent2 mapData)
+    public void SetMapData (MapComponent mapData)
     {
-        target.position = new Vector3(mapData.TileDimension.x * 0.5f, 0f, mapData.TileDimension.y * 0.5f);
+        target.position = new Vector3(mapData.TileDimension.x * 2, 0f, mapData.TileDimension.y * 2);
         target.eulerAngles = Vector3.up * 180.0f;
 
-        //mapPlane = new Plane(new Vector3(0.0f, 0f, 0.0f), new Vector3(mapUnitDimension.x, 0f, 0.0f), new Vector3(mapUnitDimension.x, 0f, mapUnitDimension.y));
+        //mapPlaneZero = new Plane(new Vector3(0.0f, 0f, 0.0f), new Vector3(mapUnitDimension.x, 0f, 0.0f), new Vector3(mapUnitDimension.x, 0f, mapUnitDimension.y));
         horizontalPlane = new Plane(Vector3.up, Vector3.zero);
     }
 

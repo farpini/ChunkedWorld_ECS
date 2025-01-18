@@ -5,7 +5,6 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using MeshGenerator;
 using BlobHashMaps;
-using System.IO;
 
 public class MeshDataAuthoring : MonoBehaviour
 {
@@ -47,8 +46,6 @@ public class MeshDataAuthoring : MonoBehaviour
 
 public class ModelBaker : Baker<Model>
 {
-    string path = Application.dataPath + "/Icons";
-
     public override void Bake (Model authoring)
     {
         var entity = GetEntity(authoring, TransformUsageFlags.None);
@@ -108,7 +105,7 @@ public class ModelBaker : Baker<Model>
             vertexAttributeDimension = vertexAttributeDimension
         });
 
-        AddComponent(entity, new ModelDataComponent { modelId = -1 });
+        //AddComponent(entity, new ModelDataComponent { modelId = -1 });
 
         AddBuffer<ChunkRendererEntityBuffer>(entity);
 
@@ -140,7 +137,6 @@ public class MapTileBaker : Baker<MapTile>
 
         var vertexStart = 0;
         var indexStart = 0;
-        var indexValue = 0u;
 
         for (int i = 0; i < tileTypeCount; i++)
         {
@@ -216,26 +212,28 @@ public class MapTileBaker : Baker<MapTile>
 
         blobBuilder.Dispose();
 
-        var tileTerrainMapping = new NativeParallelHashMap<int4, int>(System.Enum.GetValues(typeof(TileTerrainType)).Length, Allocator.Temp);
-        tileTerrainMapping.Add(int4.zero, (int)TileTerrainType.Flat);
-        tileTerrainMapping.Add(new int4(0, 1, 0, 1), (int)TileTerrainType.Saddle_0);
-        tileTerrainMapping.Add(new int4(1, 0, 1, 0), (int)TileTerrainType.Saddle_1);
-        tileTerrainMapping.Add(new int4(0, 0, 1, 1), (int)TileTerrainType.Ramp_0);
-        tileTerrainMapping.Add(new int4(1, 1, 0, 0), (int)TileTerrainType.Ramp_1);
-        tileTerrainMapping.Add(new int4(0, 1, 1, 0), (int)TileTerrainType.Ramp_2);
-        tileTerrainMapping.Add(new int4(1, 0, 0, 1), (int)TileTerrainType.Ramp_3);
-        tileTerrainMapping.Add(new int4(1, 0, 0, 0), (int)TileTerrainType.H1_0);
-        tileTerrainMapping.Add(new int4(0, 0, 1, 0), (int)TileTerrainType.H1_1);
-        tileTerrainMapping.Add(new int4(0, 1, 0, 0), (int)TileTerrainType.H1_2);
-        tileTerrainMapping.Add(new int4(0, 0, 0, 1), (int)TileTerrainType.H1_3);
-        tileTerrainMapping.Add(new int4(1, 1, 0, 1), (int)TileTerrainType.H3_0);
-        tileTerrainMapping.Add(new int4(0, 1, 1, 1), (int)TileTerrainType.H3_1);
-        tileTerrainMapping.Add(new int4(1, 1, 1, 0), (int)TileTerrainType.H3_2);
-        tileTerrainMapping.Add(new int4(1, 0, 1, 1), (int)TileTerrainType.H3_3);
-        tileTerrainMapping.Add(new int4(2, 1, 0, 1), (int)TileTerrainType.Steep_0);
-        tileTerrainMapping.Add(new int4(1, 2, 1, 0), (int)TileTerrainType.Steep_1);
-        tileTerrainMapping.Add(new int4(0, 1, 2, 1), (int)TileTerrainType.Steep_2);
-        tileTerrainMapping.Add(new int4(1, 0, 1, 2), (int)TileTerrainType.Steep_3);
+        var tileTerrainMapping = new NativeParallelHashMap<int4, int>(System.Enum.GetValues(typeof(TileTerrainType)).Length, Allocator.Temp)
+        {
+            { int4.zero, (int)TileTerrainType.Flat},
+            { new int4(0, 1, 0, 1), (int)TileTerrainType.Saddle_0},
+            { new int4(1, 0, 1, 0), (int)TileTerrainType.Saddle_1},
+            { new int4(0, 0, 1, 1), (int)TileTerrainType.Ramp_0},
+            { new int4(1, 1, 0, 0), (int)TileTerrainType.Ramp_1},
+            { new int4(0, 1, 1, 0), (int)TileTerrainType.Ramp_2},
+            { new int4(1, 0, 0, 1), (int)TileTerrainType.Ramp_3},
+            { new int4(1, 0, 0, 0), (int)TileTerrainType.H1_0},
+            { new int4(0, 0, 1, 0), (int)TileTerrainType.H1_1},
+            { new int4(0, 1, 0, 0), (int)TileTerrainType.H1_2},
+            { new int4(0, 0, 0, 1), (int)TileTerrainType.H1_3},
+            { new int4(1, 1, 0, 1), (int)TileTerrainType.H3_0},
+            { new int4(0, 1, 1, 1), (int)TileTerrainType.H3_1},
+            { new int4(1, 1, 1, 0), (int)TileTerrainType.H3_2},
+            { new int4(1, 0, 1, 1), (int)TileTerrainType.H3_3},
+            { new int4(2, 1, 0, 1), (int)TileTerrainType.Steep_0},
+            { new int4(1, 2, 1, 0), (int)TileTerrainType.Steep_1},
+            { new int4(0, 1, 2, 1), (int)TileTerrainType.Steep_2},
+            { new int4(1, 0, 1, 2), (int)TileTerrainType.Steep_3}
+        };
 
         blobBuilder = new BlobBuilder(Allocator.Temp);
         ref var root = ref blobBuilder.ConstructRoot<BlobHashMap<int4, int>>();

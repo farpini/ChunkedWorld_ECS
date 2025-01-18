@@ -4,16 +4,12 @@ using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.Rendering;
 
 [UpdateBefore(typeof(GetChunksFromRectSystem))]
 public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 {
     private MapComponent mapComponent;
     private MeshBlobDataComponent meshBlobDataComponent;
-    private MeshBlobInfoComponent meshBlobInfoComponent;
-    private MeshBlobTileTerrainMappingComponent meshBlobTileTerrainMappingComponent;
-    private float2 worldPosition;
     private int2 currentTilePosition;
     private int2 startDragTilePosition;
     private int4 rect;
@@ -28,8 +24,6 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
     {
         state.RequireForUpdate<MapComponent>();
         state.RequireForUpdate<ControllerComponent>();
-        //state.RequireForUpdate<ModelDataEntityBuffer>();
-        //state.RequireForUpdate<RectChunkEntityBuffer>();
         state.RequireForUpdate<RendererPrefabEntities>();
     }
 
@@ -41,7 +35,6 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
     {
         mapComponent = SystemAPI.GetSingleton<MapComponent>();
 
-        worldPosition = float2.zero;
         currentTilePosition = int2.zero;
         startDragTilePosition = int2.zero;
         rect = new int4(int2.zero, int2.zero);
@@ -53,8 +46,6 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 
         var terrainEntity = SystemAPI.GetSingleton<RendererPrefabEntities>().tilePrefab;
         meshBlobDataComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobDataComponent>(terrainEntity);
-        meshBlobInfoComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(terrainEntity);
-        meshBlobTileTerrainMappingComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobTileTerrainMappingComponent>(terrainEntity);
 
         //chunkRendererIndexesToInstantiate = new NativeList<int2>(currentMapComponent.ChunkDimension.x * currentMapComponent.ChunkDimension.y, Allocator.Persistent);
     }
@@ -79,17 +70,20 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 
         GetWorldPositions(ref state, ref mapTiles);
 
+        isDragging = Input.GetMouseButton(0);
+
         if (Input.GetMouseButtonDown(0))
         {
             if (!EventSystem.current.IsPointerOverGameObject())
             {
-                isDragging = true;
+                //isDragging = true;
                 startDragTilePosition = currentTilePosition;
             }
         }
-        else if (Input.GetMouseButtonUp(0))
+
+        if (Input.GetMouseButtonUp(0))
         {
-            isDragging = false;
+            //isDragging = false;
 
             if (!EventSystem.current.IsPointerOverGameObject())
             {
@@ -98,54 +92,13 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
                     controllerData.ValueRW.Rect = rect;
                     controllerData.ValueRW.OnRectSelecting = false;
 
-                    SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().RectView.SetMesh(new Mesh());
+                    SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().RectSelection.Hide();
                 }
-
-                /*
-                if (state == ControllerState.CreateModel)
-                {
-                    entityManager.SetComponentData(controllerEntity, new ControllerComponent
-                    {
-                        State = state,
-                        OnRectSelecting = true,
-                        Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
-                        ModelCount = modelCount,
-                        ModelSelectedId = currentModelSelectedId,
-                        FloorSelectedTextureId = 0,
-                        StartTile = new int2(startDragTilePosition.x, startDragTilePosition.y)
-                    });
-                }
-                else if (state == ControllerState.RemoveModel)
-                {
-                    entityManager.SetComponentData(controllerEntity, new ControllerComponent
-                    {
-                        State = state,
-                        OnRectSelecting = true,
-                        Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
-                        ModelCount = modelCount,
-                        ModelSelectedId = currentModelSelectedId,
-                        FloorSelectedTextureId = 0,
-                        StartTile = new int2(startDragTilePosition.x, startDragTilePosition.y)
-                    });
-                }
-                else if (state == ControllerState.LowerTerrain)
-                {
-                    entityManager.SetComponentData(controllerEntity, new ControllerComponent
-                    {
-                        State = state,
-                        OnRectSelecting = true,
-                        Rect = new int4(rect.position.x, rect.position.y, rect.size.x, rect.size.y),
-                        ModelCount = modelCount,
-                        ModelSelectedId = currentModelSelectedId,
-                        FloorSelectedTextureId = 0,
-                        StartTile = new int2(startDragTilePosition.x, startDragTilePosition.y)
-                    });
-                }
-                */
             }
         }
     }
 
+    [BurstCompile]
     private bool GetTilePositionIntersection (ref NativeArray<TileData> mapTiles, Ray ray, int2 rectPosition, int2 rectSize,
         out int2 tilePositionIntersected, out int tileIndexIntersected)
     {
@@ -221,32 +174,31 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
         {
             currentTilePosition = tilePositionOver;
 
-            if (lastTilePosition.Equals(currentTilePosition))
-            {
-                OnTilePositionChanged(ref state, ref mapTiles, true);
-            }
+            // comment this if for speed up
+            //if (lastTilePosition.Equals(currentTilePosition))
+            //{
+                OnTilePositionChanged(ref state, true);
+            //}
         }
         else
         {
-            worldPosition = INVALID_FLOAT2;
+            //worldPosition = INVALID_FLOAT2;
             currentTilePosition = INVALID_INT2;
 
-            if (lastTilePosition.Equals(currentTilePosition))
-            {
-                OnTilePositionChanged(ref state, ref mapTiles, false);
-            }
+            // comment this if for speed up
+            //if (lastTilePosition.Equals(currentTilePosition))
+            //{
+                OnTilePositionChanged(ref state, false);
+            //}
         }
     }
 
-    private void OnTilePositionChanged (ref SystemState state, ref NativeArray<TileData> mapTiles, bool isValid)
+    private void OnTilePositionChanged (ref SystemState state, bool isValid)
     {
         if (EventSystem.current.IsPointerOverGameObject())
         {
             return;
         }
-
-        var mapTileComponent = SystemAPI.GetSingletonRW<MapTileComponent>();
-        var mapHeights = mapTileComponent.ValueRW.TileHeightMap;
 
         var rectPosition = currentTilePosition;
         var rectSize = new int2(1, 1);
@@ -261,105 +213,14 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
             }
         }
 
+        rect = new int4(rectPosition, rectSize);
+        isRectValid = isValid;
+
         if (isValid)
         {
-            SetRectView(ref state, rectPosition, rectSize, mapTileComponent.ValueRO.MapHeightMaxMinValue, ref mapTiles, ref mapHeights);
+            SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().RectSelection.SetRect(
+                rectPosition * mapComponent.TileWidth, (rectPosition + rectSize) * mapComponent.TileWidth);
         }
-    }
-
-    private void SetRectView (ref SystemState state, int2 rectPosition, int2 rectSize, float2 mapHeightMaxMinValue, 
-        ref NativeArray<TileData> mapTiles, ref NativeArray<float> mapHeights)
-    {
-        var rectView = SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().RectView;
-        var mesh = new Mesh();
-        var rectViewMeshArray = Mesh.AllocateWritableMeshData(mesh);
-        var rectViewMesh = rectViewMeshArray[0];
-
-        var vertexTileCount = meshBlobInfoComponent.vertexCount;
-        var vertexAttributeCount = meshBlobInfoComponent.meshInfoBlob.Value.attributes.Length;
-        var indexTileCount = meshBlobInfoComponent.indexCount;
-        var tileCount = rectSize.x * rectSize.y;
-
-        rectViewMesh.SetVertexBufferParams(tileCount * vertexTileCount,
-                meshBlobInfoComponent.meshInfoBlob.Value.attributes.ToArray()); // use same attributes from the tile
-        rectViewMesh.SetIndexBufferParams(tileCount * indexTileCount, IndexFormat.UInt32);
-
-        var vertexesArray = rectViewMesh.GetVertexData<float3>();
-        var indexArray = rectViewMesh.GetIndexData<uint>();
-
-        ref var vertexBlobArray = ref meshBlobDataComponent.meshDataBlob.Value.vertexes;
-        ref var indexBlobArray = ref meshBlobDataComponent.meshDataBlob.Value.indexes;
-
-        var vertexIndex = 0;
-
-        for (int i = 0; i < rectSize.x; i++)
-        {
-            for (int j = 0; j < rectSize.y; j++)
-            {
-                var tilePosition = rectPosition + new int2(i, j);
-                var tileIndex = mapComponent.GetTileIndexFromTilePosition(tilePosition);
-
-                var heights = int4.zero;
-                heights.x = mapComponent.GetHeightNormalized(mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition)], mapHeightMaxMinValue);
-                heights.y = mapComponent.GetHeightNormalized(mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetEast())], mapHeightMaxMinValue);
-                heights.z = mapComponent.GetHeightNormalized(mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetNorthEast())], mapHeightMaxMinValue);
-                heights.w = mapComponent.GetHeightNormalized(mapHeights[mapComponent.GetHeigthMapIndexFromHeightMapPosition(tilePosition.GetNorth())], mapHeightMaxMinValue);
-                var heightMin = math.min(heights.x, math.min(heights.y, math.min(heights.z, heights.w)));
-
-                var tileData = mapTiles[tileIndex];
-                tileData.terrainLevel = heightMin;
-                mapTiles[tileIndex] = tileData;
-
-                heights.x -= heightMin;
-                heights.y -= heightMin;
-                heights.z -= heightMin;
-                heights.w -= heightMin;
-
-                if (!meshBlobTileTerrainMappingComponent.mapping.Value.TryGetValue(heights, out var tileTerrainType))
-                {
-                    tileTerrainType = 0;
-                }
-                var tileWorldPosition = new float3(tilePosition.x, tileData.terrainLevel, tilePosition.y);
-
-                var vRead = vertexTileCount * vertexAttributeCount * tileTerrainType;
-                var vStart = vertexIndex * vertexAttributeCount * vertexTileCount;
-
-                for (int v = 0; v < vertexTileCount; v++)
-                {
-                    // Position
-                    vertexesArray[vStart++] = (vertexBlobArray[vRead++] + tileWorldPosition) * mapComponent.TileWidth;
-                    // Normal
-                    vertexesArray[vStart++] = vertexBlobArray[vRead++];
-                    // UV
-                    vertexesArray[vStart++] = vertexBlobArray[vRead++];
-                }
-
-                var tRead = indexTileCount * tileTerrainType;
-                var tStart = vertexIndex * indexTileCount;
-                var tValue = vertexIndex * vertexTileCount;
-
-                for (int t = 0; t < indexTileCount; t++)
-                {
-                    indexArray[tStart++] = indexBlobArray[tRead++] + (uint)tValue;
-                }
-
-                vertexIndex++;
-            }
-        }
-
-        rectViewMesh.subMeshCount = 1;
-        rectViewMesh.SetSubMesh(0, new SubMeshDescriptor(0, tileCount * meshBlobInfoComponent.indexCount));
-
-        Mesh.ApplyAndDisposeWritableMeshData(rectViewMeshArray, mesh, MeshUpdateFlags.Default);
-
-        rectView.SetMesh(mesh);
-    }
-
-    [BurstCompile]
-    private bool IsWorldPositionValid (float2 worldPosition)
-    {
-        return worldPosition.x >= 0f && worldPosition.x < (mapComponent.TileDimension.x * mapComponent.TileWidth) &&
-            worldPosition.y >= 0f && worldPosition.y < (mapComponent.TileDimension.y * mapComponent.TileWidth);
     }
 
     [BurstCompile]

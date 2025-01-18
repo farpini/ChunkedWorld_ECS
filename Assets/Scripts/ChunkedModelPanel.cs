@@ -13,6 +13,7 @@ public class ChunkedModelPanel : MonoBehaviour
     [SerializeField] private Slider randomSpawnSlider;
     [SerializeField] private Button randomPlacementButton;
     [SerializeField] private Button selectPlacementButton;
+    [SerializeField] private Button removeModelButton;
     [SerializeField] private TMP_Text modelNameText;
     [SerializeField] private TMP_Text spawnRandomText;
 
@@ -25,6 +26,7 @@ public class ChunkedModelPanel : MonoBehaviour
     public Action OnAnyUIEvent;
     public Action<int, int> OnRandomPlacementClicked;
     public Action<int> OnSelectPlacementClicked;
+    public Action OnRemoveModelClicked;
 
 
     private void Awake ()
@@ -36,6 +38,7 @@ public class ChunkedModelPanel : MonoBehaviour
         previousButton.onClick.AddListener(() => OnPreviousButtonClicked());
         randomPlacementButton.onClick.AddListener(() => OnRandomPlacementButtonClicked());
         selectPlacementButton.onClick.AddListener(() => OnSelectPlacementButtonClicked());
+        removeModelButton.onClick.AddListener(() => OnRemoveModelButtonClicked());
         randomSpawnSlider.onValueChanged.AddListener((float v) => OnSpawnRandomPercentageValueChanged(v));
     }
 
@@ -45,6 +48,7 @@ public class ChunkedModelPanel : MonoBehaviour
         previousButton.onClick.RemoveAllListeners();
         randomPlacementButton.onClick.RemoveAllListeners();
         selectPlacementButton.onClick.RemoveAllListeners();
+        removeModelButton.onClick.RemoveAllListeners();
         randomSpawnSlider.onValueChanged.RemoveAllListeners();
     }
 
@@ -128,5 +132,11 @@ public class ChunkedModelPanel : MonoBehaviour
     {
         OnAnyUIEvent?.Invoke();
         OnSelectPlacementClicked?.Invoke(currentModelSelected);
+    }
+
+    private void OnRemoveModelButtonClicked ()
+    {
+        OnAnyUIEvent?.Invoke();
+        OnRemoveModelClicked?.Invoke();
     }
 }

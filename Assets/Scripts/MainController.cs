@@ -6,7 +6,7 @@ using UnityEngine.UI;
 public class MainController : MonoBehaviour
 {
     [SerializeField] private Map map;
-    [SerializeField] private RectView rectView;
+    [SerializeField] private RectSelection rectSelection;
     [SerializeField] private TerrainGeneratorPanel terrainGeneratorPanel;
     [SerializeField] private ChunkedModelPanel chunkedModelPanel;
     [SerializeField] private Button terrainGeneratorPanelButton;
@@ -19,14 +19,13 @@ public class MainController : MonoBehaviour
     private int modelCount;
 
     private EntityManager entityManager;
-    //private EntityArchetype meshChunkArchetype;
     private Entity controllerEntity;
 
     private void Awake ()
     {
         state = ControllerState.None;
         modelCount = 0;
-        rectView.Show(false);
+        rectSelection.Hide();
 
         terrainGeneratorPanelButton.onClick.AddListener(() => OnTerrainGeneratorPanelButtonClicked());
         chunkedModelPanelButton.onClick.AddListener(() => OnChunkedModelPanelButtonClicked());
@@ -36,13 +35,13 @@ public class MainController : MonoBehaviour
 
         chunkedModelPanel.OnAnyUIEvent += CancelAction;
         chunkedModelPanel.OnSelectPlacementClicked += OnChunkedModelSelectPlacementButtonClicked;
+        chunkedModelPanel.OnRandomPlacementClicked += OnChunkedModelRandomPlacementButtonClicked;
+        chunkedModelPanel.OnRemoveModelClicked += OnRemoveModelClicked;
     }
 
     private void Start ()
     {
         entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
-
-        //meshChunkArchetype = entityManager.CreateArchetype(typeof(MeshChunkData));
 
         var modelDataEntityQuery = entityManager.CreateEntityQuery(typeof(ModelDataEntityBuffer));
         var modelDataEntityBuffer = modelDataEntityQuery.GetSingletonBuffer<ModelDataEntityBuffer>();
@@ -58,10 +57,6 @@ public class MainController : MonoBehaviour
 
     private void OnDestroy ()
     {
-        //modelCreateButton.onClick.RemoveAllListeners();
-        //modelRemoveButton.onClick.RemoveAllListeners();
-        //generateTerrainButton.onClick.RemoveAllListeners();
-        //modelDropDown.onValueChanged.RemoveAllListeners();
         terrainGeneratorPanelButton.onClick.RemoveAllListeners();
         chunkedModelPanelButton.onClick.RemoveAllListeners();
 
@@ -70,6 +65,8 @@ public class MainController : MonoBehaviour
 
         chunkedModelPanel.OnAnyUIEvent -= CancelAction;
         chunkedModelPanel.OnSelectPlacementClicked -= OnChunkedModelSelectPlacementButtonClicked;
+        chunkedModelPanel.OnRandomPlacementClicked -= OnChunkedModelRandomPlacementButtonClicked;
+        chunkedModelPanel.OnRemoveModelClicked -= OnRemoveModelClicked;
     }
 
     private void Update ()
@@ -117,7 +114,7 @@ public class MainController : MonoBehaviour
         entityManager.SetComponentData(controllerEntity, new RefGameObject
         {
             Map = map,
-            RectView = rectView
+            RectSelection = rectSelection
         });
 
         entityManager.SetName(controllerEntity, "ControllerEntity");
@@ -130,7 +127,8 @@ public class MainController : MonoBehaviour
         terrainGeneratorPanel.gameObject.SetActive(!isPanelActive);
         if (!isPanelActive)
         {
-            terrainGeneratorPanel.UpdatePanel(mapComponent);
+
+            terrainGeneratorPanel.UpdatePanel(entityManager.GetComponentData<MapComponent>(controllerEntity));
         }
         chunkedModelPanel.gameObject.SetActive(false);
     }
@@ -179,78 +177,26 @@ public class MainController : MonoBehaviour
         controllerData.ModelSelectedId = modelSelectedId;
         controllerData.OnRectSelecting = true;
         entityManager.SetComponentData(controllerEntity, controllerData);
-
-        rectView.Show(true);
     }
 
-
-    /*
-    private void OnModelCreateButtonClicked ()
+    private void OnRemoveModelClicked ()
     {
         CancelAction();
 
-        state = ControllerState.CreateModel;
+        state = ControllerState.ChunkedModelRemove;
 
-        entityManager.SetComponentData(controllerEntity, new ControllerComponent
-        {
-            State = state,
-            OnRectSelecting = true,
-            Rect = int4.zero,
-            ModelCount = modelCount,
-            ModelSelectedId = currentModelSelectedId,
-            FloorSelectedTextureId = 0,
-            StartTile = int2.zero
-        });
-
-        rectView.Show(true);
+        var controllerData = entityManager.GetComponentData<ControllerComponent>(controllerEntity);
+        controllerData.State = state;
+        controllerData.ModelSelectedId = 0;
+        controllerData.OnRectSelecting = true;
+        entityManager.SetComponentData(controllerEntity, controllerData);
     }
 
-    private void OnModelRemoveButtonClicked ()
+    private void OnChunkedModelRandomPlacementButtonClicked (int modelSelectedId, int spawnRandomPercentage)
     {
         CancelAction();
 
-        state = ControllerState.RemoveModel;
-
-        entityManager.SetComponentData(controllerEntity, new ControllerComponent
-        {
-            State = state,
-            OnRectSelecting = true,
-            Rect = int4.zero,
-            ModelCount = modelCount,
-            ModelSelectedId = currentModelSelectedId,
-            FloorSelectedTextureId = 0,
-            StartTile = int2.zero
-        });
-
-        rectView.Show(true);
-    }
-    */
-
-    private void OnGenerateTerrainButtonClicked ()
-    {
-        CancelAction();
-
-        /*
-        state = ControllerState.GenerateTerrain;
-
-        entityManager.SetComponentData(controllerEntity, new ControllerComponent
-        {
-            State = state,
-            OnRectSelecting = false,
-            Rect = int4.zero,
-            ModelCount = modelCount,
-            ModelSelectedId = currentModelSelectedId,
-            FloorSelectedTextureId = 0,
-            StartTile = int2.zero
-        });
-
-        var currentMapComponent = entityManager.GetComponentData<MapComponent>(controllerEntity);
-        currentMapComponent.Roughness = mapRoughness;
-        currentMapComponent.Smoothness = mapSmoothness;
-        currentMapComponent.MaxHeight = mapHeight;
-        currentMapComponent.MaxDepth = mapDepth;
-        entityManager.SetComponentData<MapComponent>(controllerEntity, currentMapComponent);
-        */
+        Debug.LogWarning("Not implemented yet.");
     }
 
     private void CancelAction ()
@@ -268,7 +214,7 @@ public class MainController : MonoBehaviour
             StartTile = int2.zero
         });
 
-        rectView.Show(false);
+        rectSelection.Hide();
     }
 
     private void UI_LoadModels (DynamicBuffer<ModelDataEntityBuffer> modelDataEntityBuffer)

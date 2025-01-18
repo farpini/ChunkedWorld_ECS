@@ -1,5 +1,4 @@
-﻿using System.Drawing;
-using Unity.Burst;
+﻿using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -9,7 +8,8 @@ using Unity.Rendering;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-public partial struct EditModelSystem : ISystem, ISystemStartStop
+[UpdateAfter(typeof(GetChunksFromRectSystem))]
+public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
 {
     private MapComponent mapComponent;
 
@@ -36,7 +36,6 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
 
     public void OnUpdate (ref SystemState state)
     {
-        /*
         var controllerData = SystemAPI.GetSingletonRW<ControllerComponent>();
 
         if (controllerData.ValueRO.OnRectSelecting)
@@ -44,7 +43,7 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
             return;
         }
 
-        if (controllerData.ValueRO.State != ControllerState.CreateModel && controllerData.ValueRO.State != ControllerState.RemoveModel)
+        if (controllerData.ValueRO.State != ControllerState.ChunkedModelSelectPlacement && controllerData.ValueRO.State != ControllerState.ChunkedModelRemove)
         {
             return;
         }
@@ -56,28 +55,30 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
             return;
         }
 
+        mapComponent = SystemAPI.GetSingleton<MapComponent>();
+
         var modelDataEntityBuffer = SystemAPI.GetSingletonBuffer<ModelDataEntityBuffer>();
 
         var modelId = controllerData.ValueRO.ModelSelectedId;
 
         if (modelId < modelDataEntityBuffer.Length)
         {
-            if (controllerData.ValueRO.State == ControllerState.CreateModel)
+            if (controllerData.ValueRO.State == ControllerState.ChunkedModelSelectPlacement)
             {
-                CreateModelInChunks(ref state, modelId, controllerData.ValueRO.ModelCount, modelDataEntityBuffer, 
+                CreateModelInChunks(ref state, modelId, controllerData.ValueRO.ModelCount, modelDataEntityBuffer,
                     rectBuffer.AsNativeArray().Reinterpret<RectChunkData>());
             }
-            else if (controllerData.ValueRO.State == ControllerState.RemoveModel)
+            else if (controllerData.ValueRO.State == ControllerState.ChunkedModelRemove)
             {
-                RemoveModelInChunks(ref state, controllerData.ValueRO.ModelCount, modelDataEntityBuffer, 
+                RemoveModelInChunks(ref state, controllerData.ValueRO.ModelCount, modelDataEntityBuffer,
                     rectBuffer.AsNativeArray().Reinterpret<RectChunkData>());
             }
         }
 
         rectBuffer.Clear();
 
-        controllerData.ValueRW.State = ControllerState.None;
-        */
+        //controllerData.ValueRW.State = ControllerState.None;
+        controllerData.ValueRW.OnRectSelecting = true;
     }
 
     private void RemoveModelInChunks (ref SystemState state, int modelCount,
@@ -262,6 +263,7 @@ public partial struct EditModelSystem : ISystem, ISystemStartStop
             RectSize = chunkRect.zw,
             ModelId = modelId + 1,
             MapTileDimension = mapComponent.TileDimension,
+            MaxDepth = mapComponent.MaxDepth,
             MapTileWidth = mapComponent.TileWidth,
             VertexCount = meshDataComponent.vertexCount,
             IndexCount = meshDataComponent.indexCount,
@@ -383,6 +385,9 @@ public partial struct CreateModelInChunkRectJob : IJob
     public int2 MapTileDimension;
 
     [ReadOnly]
+    public int MaxDepth;
+
+    [ReadOnly]
     public int MapTileWidth;
 
     [ReadOnly]
@@ -435,9 +440,16 @@ public partial struct CreateModelInChunkRectJob : IJob
 
                 var tileData = MapTiles[tileIndex];
 
+                var tileHeight = tileData.terrainLevel + tileData.terrainHeight;
+
+                if (tileData.terrainLevel < MaxDepth)
+                {
+                    continue;
+                }
+
                 var modelWorldPosition = new float3(
                     tilePosition.x * MapTileWidth + halfTileWidth,
-                    (tileData.terrainLevel + tileData.terrainHeight) * MapTileWidth,
+                    tileHeight * MapTileWidth,
                     tilePosition.y * MapTileWidth + halfTileWidth);
 
                 if (tileData.modelType != ModelId)

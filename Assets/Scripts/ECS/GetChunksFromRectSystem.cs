@@ -4,7 +4,6 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 
-[UpdateBefore(typeof(EditModelSystem))]
 public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
 {
     private MapComponent mapComponent;
@@ -38,6 +37,82 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
 
     public void OnUpdate (ref SystemState state)
     {
+        var controllerData = SystemAPI.GetSingletonRW<ControllerComponent>();
+
+        if (controllerData.ValueRO.OnRectSelecting)
+        {
+            return;
+        }
+
+        if (controllerData.ValueRO.State != ControllerState.ChunkedModelSelectPlacement &&
+            controllerData.ValueRO.State != ControllerState.ChunkedModelRemove)
+        {
+            return;
+        }
+
+        var rectBuffer = SystemAPI.GetSingletonBuffer<RectChunkEntityBuffer>();
+        rectBuffer.Clear();
+
+        var modelDataEntityBuffer = SystemAPI.GetSingletonBuffer<ModelDataEntityBuffer>();
+
+        var modelId = controllerData.ValueRO.ModelSelectedId;
+
+        if (modelId < modelDataEntityBuffer.Length)
+        {
+            mapComponent = SystemAPI.GetSingleton<MapComponent>();
+
+            var modelEntity = modelDataEntityBuffer[modelId].Value;
+            var chunkRendererEntityBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(modelEntity);
+
+            var rect = controllerData.ValueRO.Rect;
+
+            chunkRendererIndexesToInstantiate.Clear();
+
+            var selectedRectangle = new Rectangle(rect.x, rect.y, rect.z, rect.w);
+
+                //(controllerData.ValueRO.State == ControllerState.ChunkedModelSelectPlacement || controllerData.ValueRO.State == ControllerState.ChunkedModelRemove) ?
+                //new Rectangle(rect.x, rect.y, rect.z, rect.w) : new Rectangle(rect.x - 1, rect.y - 1, rect.z + 2, rect.w + 2);
+
+            for (int i = 0; i < mapComponent.ChunkDimension.x; i++)
+            {
+                for (int j = 0; j < mapComponent.ChunkDimension.y; j++)
+                {
+                    var chunkPosition = new int2(i, j);
+                    var chunkRectanglePosition = chunkPosition * mapComponent.ChunkWidth;
+                    var chunkRectangle = new Rectangle(
+                        chunkRectanglePosition.x, chunkRectanglePosition.y, mapComponent.ChunkWidth, mapComponent.ChunkWidth);
+                    var resultRectangle = Rectangle.Intersect(selectedRectangle, chunkRectangle);
+
+                    if (!resultRectangle.IsEmpty)
+                    {
+                        if (resultRectangle.Width > 0 && resultRectangle.Height > 0)
+                        {
+                            //controllerData.ValueRW.HasRect = true;
+
+                            rectBuffer.Add(new RectChunkEntityBuffer
+                            {
+                                Value = new RectChunkData
+                                {
+                                    chunkPosition = chunkPosition,
+                                    chunkRect = new int4(resultRectangle.X, resultRectangle.Y, resultRectangle.Width, resultRectangle.Height)
+                                }
+                            });
+
+                            var chunkIndex = mapComponent.GetChunkIndexFromChunkPosition(chunkPosition);
+
+                            if (chunkRendererEntityBuffer[chunkIndex] == Entity.Null)
+                            {
+                                chunkRendererIndexesToInstantiate.Add(chunkPosition);
+                            }
+                        }
+                    }
+                }
+            }
+
+            InstantiateChunkRenderers(ref state, modelEntity, modelId);
+            chunkRendererIndexesToInstantiate.Clear();
+        }
+
         /*
         var controllerData = SystemAPI.GetSingletonRW<ControllerComponent>();
 
@@ -67,7 +142,7 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
 
             chunkRendererIndexesToInstantiate.Clear();
 
-            var createRectangle = (controllerData.ValueRO.State == ControllerState.CreateModel || controllerData.ValueRO.State == ControllerState.RemoveModel) ?
+            var selectedRectangle = (controllerData.ValueRO.State == ControllerState.CreateModel || controllerData.ValueRO.State == ControllerState.RemoveModel) ?
                 new Rectangle(rect.x, rect.y, rect.z, rect.w) : new Rectangle(rect.x - 1, rect.y - 1, rect.z + 2, rect.w + 2);
 
             for (int i = 0; i < mapComponent.ChunkDimension.x; i++)
@@ -78,7 +153,7 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
                     var chunkRectanglePosition = chunkPosition * mapComponent.ChunkWidth;
                     var chunkRectangle = new Rectangle(
                         chunkRectanglePosition.x, chunkRectanglePosition.y, mapComponent.ChunkWidth, mapComponent.ChunkWidth);
-                    var resultRectangle = Rectangle.Intersect(createRectangle, chunkRectangle);
+                    var resultRectangle = Rectangle.Intersect(selectedRectangle, chunkRectangle);
 
                     if (!resultRectangle.IsEmpty)
                     {

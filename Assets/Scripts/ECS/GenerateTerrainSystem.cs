@@ -3,17 +3,12 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEditor.ShaderGraph;
 
 public partial struct GenerateTerrainSystem : ISystem, ISystemStartStop
 {
     private Unity.Mathematics.Random seedRandom;
-    private Unity.Mathematics.Random RandomValue;
     private MapComponent currentMapComponent;
-    private int mapHeightWidth;
-    private static NativeArray<float> currentHeight;
 
     public void OnCreate (ref SystemState state)
     {
@@ -53,25 +48,34 @@ public partial struct GenerateTerrainSystem : ISystem, ISystemStartStop
         mapTileComponent.ValueRW.TileHeightMap = new NativeArray<float>(
             (currentMapComponent.TileDimension.x + 1) * (currentMapComponent.TileDimension.y + 1), Allocator.Persistent);
 
-        //Debug.Log("DISPOSE");
+        // it needs to dispose MeshChunkData...
+        var chunkModelQuery = state.EntityManager.CreateEntityQuery(typeof(MeshChunkData));
+        var chunkModelEntities = chunkModelQuery.ToEntityArray(Allocator.Temp);
+        var chunkModelMeshData = chunkModelQuery.ToComponentArray<MeshChunkData>();
+        for (int i = 0; i < chunkModelMeshData.Length; i++)
+        {
+            chunkModelMeshData[i].Dispose();
+        }
 
+        ecb.DestroyEntity(chunkModelEntities);
+
+        // destroy individual renderers
+        // HERE...
+        // .....
+
+        // create/destroy the chunk terrain renderers only if mapsize changed of it is the first generation
         if (currentMapSize == currentMapComponent.TileDimension.x && terrainChunkEntityBuffer.Length > 0)
         {
             return;
         }
 
+        // destroy the chunk terrain renderers
         if (terrainChunkEntityBuffer.Length > 0)
         {
+            // destroy the chunk terrain renderers
             var chunkRendererEntites = new NativeArray<Entity>(terrainChunkEntityBuffer.AsNativeArray().Reinterpret<Entity>(), Allocator.Temp);
             terrainChunkEntityBuffer.Clear();
-            // destroy the renderers
             ecb.DestroyEntity(chunkRendererEntites);
-            //terrainChunkEntityBuffer.Clear();
-
-            // destroy the chunk renderers
-            // it needs to dispose MeshChunkData...
-
-            // destroy individual renderers
         }
 
         var chunkDimension = currentMapComponent.ChunkDimension;
@@ -81,6 +85,7 @@ public partial struct GenerateTerrainSystem : ISystem, ISystemStartStop
 
         var chunkIndex = 0;
 
+        // create the chunk terrain renderers
         for (int i = 0; i < chunkDimension.x; i++)
         {
             for (int j = 0; j < chunkDimension.y; j++)
@@ -107,11 +112,35 @@ public partial struct GenerateTerrainSystem : ISystem, ISystemStartStop
         var ecb = new EntityCommandBuffer(Allocator.Temp);
 
         CreateTerrainChunkRenderers(ref state, ecb);
+        SetupRenderingModels(ref state, ecb);
         GenerateTerrain(ref state);
 
         controllerData.ValueRW.State = ControllerState.UpdateTerrain;
 
         ecb.Playback(state.EntityManager);
+    }
+
+    [BurstCompile]
+    private void SetupRenderingModels (ref SystemState state, EntityCommandBuffer ecb)
+    {
+        var chunkDimension = currentMapComponent.ChunkDimension;
+
+        var modelDataEntityBuffer = SystemAPI.GetSingletonBuffer<ModelDataEntityBuffer>();
+
+        // remove chunk model renderer entities and create with the appropriate length
+        for (int i = 0; i < modelDataEntityBuffer.Length; i++)
+        {
+            var modelEntity = modelDataEntityBuffer[i].Value;
+            var modelChunkEntityBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(modelEntity);
+            var modelChunkRendererEntities = modelChunkEntityBuffer.AsNativeArray().Reinterpret<Entity>();
+            var buffer = ecb.SetBuffer<ChunkRendererEntityBuffer>(modelEntity);
+            buffer.Length = chunkDimension.x * chunkDimension.y;
+            for (int j = 0; j < buffer.Length; j++)
+            {
+                 buffer[j] = new ChunkRendererEntityBuffer { Value = Entity.Null };
+            }
+            ecb.DestroyEntity(modelChunkRendererEntities);
+        }
     }
 
     [BurstCompile]

@@ -3,6 +3,7 @@ using System;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 using UnityEngine.Rendering;
 
 public struct ControllerComponent : IComponentData
@@ -19,7 +20,7 @@ public struct ControllerComponent : IComponentData
 public class RefGameObject : IComponentData
 {
     public Map Map;
-    public RectView RectView;
+    public RectSelection RectSelection;
 }
 
 [InternalBufferCapacity(64)]
@@ -63,7 +64,7 @@ public struct MapComponent : IComponentData
 
     public int2 GetTilePositionFromPosition (float3 worldPosition)
     {
-        return (int2)new float2(math.round(worldPosition.xz / TileWidth));
+        return (int2)new float2(math.floor(worldPosition.xz / TileWidth));
     }
 
     public int2 GetChunkFromTilePosition (int2 tilePosition)
@@ -152,7 +153,7 @@ public enum TileTerrainType
 
 public enum ControllerState
 {
-    None, GenerateTerrain, UpdateTerrain, ChunkedModelRandomPlacement, ChunkedModelSelectPlacement
+    None, GenerateTerrain, UpdateTerrain, ChunkedModelRandomPlacement, ChunkedModelSelectPlacement, ChunkedModelRemove
 }
 
 public struct RendererPrefabEntities : IComponentData
@@ -192,11 +193,6 @@ public class MeshChunkData : IComponentData, IDisposable
     {
         if (mapping.IsCreated) mapping.Dispose();
     }
-}
-
-public struct ModelDataComponent : IComponentData
-{
-    public int modelId;
 }
 
 public struct MeshBlobInfoComponent : ISharedComponentData

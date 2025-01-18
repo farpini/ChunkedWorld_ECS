@@ -1,4 +1,9 @@
-﻿using System.Drawing;
+﻿/*
+ * Written by Fernando Arpini Ferretto
+ * https://github.com/farpini/ProceduralTileChunkedMap_ECS
+ */
+
+using System.Drawing;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;

@@ -1,7 +1,6 @@
 using UnityEditor;
 using UnityEngine;
 
-// assetdatabase commented
 
 public class TextureArrayGen : MonoBehaviour
 {
@@ -63,7 +62,7 @@ public class TextureArrayGen : MonoBehaviour
         textureArray.anisoLevel = anisioLevel;
         textureArray.Apply();
         
-
+        // uncomment this to generate asset
         //AssetDatabase.CreateAsset(textureArray, "Assets/Resources/Textures/TextureArray_" + textureArrayName + ".asset");
     }
 }

@@ -1,4 +1,9 @@
-﻿using Unity.Burst;
+﻿/*
+ * Written by Fernando Arpini Ferretto
+ * https://github.com/farpini/ProceduralTileChunkedMap_ECS
+ */
+
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -13,7 +18,7 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
     private int2 currentTilePosition;
     private int2 startDragTilePosition;
     private int4 rect;
-    public bool isRectValid;
+    private bool isRectValid;
     private Ray currentRay;
     private Plane mapPlaneZero;
     private bool isDragging;
@@ -46,13 +51,10 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
 
         var terrainEntity = SystemAPI.GetSingleton<RendererPrefabEntities>().tilePrefab;
         meshBlobDataComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobDataComponent>(terrainEntity);
-
-        //chunkRendererIndexesToInstantiate = new NativeList<int2>(currentMapComponent.ChunkDimension.x * currentMapComponent.ChunkDimension.y, Allocator.Persistent);
     }
 
     public void OnStopRunning (ref SystemState state)
     {
-        //chunkRendererIndexesToInstantiate.Dispose();
     }
 
     public void OnUpdate (ref SystemState state)
@@ -122,11 +124,6 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
                 var tileIndex = mapComponent.GetTileIndexFromTilePosition(tilePosition);
 
                 var tileData = mapTiles[tileIndex];
-
-                //if (tileData.terrainLevel < mapComponent.MaxDepth)
-                //{
-                //    continue;
-                //}
 
                 var tileWorldPosition = new float3(tilePosition.x, tileData.terrainLevel, tilePosition.y);
 

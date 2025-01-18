@@ -1,4 +1,9 @@
-﻿using System.Collections;
+﻿/*
+ * Written by Fernando Arpini Ferretto
+ * https://github.com/farpini/ProceduralTileChunkedMap_ECS
+ */
+
+using System.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 

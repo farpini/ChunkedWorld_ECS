@@ -1,3 +1,8 @@
+/*
+ * Written by Fernando Arpini Ferretto
+ * https://github.com/farpini/ProceduralTileChunkedMap_ECS
+ */
+
 using BlobHashMaps;
 using System;
 using Unity.Collections;

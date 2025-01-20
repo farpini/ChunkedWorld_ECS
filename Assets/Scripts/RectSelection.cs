@@ -3,7 +3,6 @@
  * https://github.com/farpini/ProceduralTileChunkedMap_ECS
  */
 
-using System.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 

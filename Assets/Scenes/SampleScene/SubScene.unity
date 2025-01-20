@@ -163,8 +163,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df9c46844f9134c45a005f3358604ba2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  chunkModelRendererPrefab: {fileID: 5019324388885201569, guid: 61bc657fac74eef409c023ea44bf6406, type: 3}
-  chunkTileRendererPrefab: {fileID: 5019324388885201569, guid: ad2851c2da57584488f67166969188a0, type: 3}
   tilePrefab: {fileID: 107594132907127703, guid: 5e08615aa8e0c4e4aa749260dc3f303c, type: 3}
   modelArray:
   - {fileID: 4315571438870259406, guid: 2f80adeaec45fcc4db5bd35abef53f58, type: 3}

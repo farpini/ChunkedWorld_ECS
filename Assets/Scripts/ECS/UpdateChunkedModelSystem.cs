@@ -148,6 +148,8 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
     {
         var meshChunkData = state.EntityManager.GetComponentObject<MeshChunkData>(chunkedModelRendererEntity);
 
+        var startModelCount = meshChunkData.mapping.Count;
+
         var materialMeshInfoComponent = SystemAPI.GetComponentRW<MaterialMeshInfo>(chunkedModelRendererEntity);
         var chunkMeshId = materialMeshInfoComponent.ValueRO.MeshID;
 
@@ -161,7 +163,7 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
             InvMapping = meshChunkData.invMapping,
             ModelTilesToRemove = tilesToRemove,
             VertexCount = meshDataComponent.vertexCount,
-            VertexAttributeDimension = meshDataComponent.vertexAttributeDimension,
+            StartModelCount = startModelCount,
             MeshChunkData = chunkData
         };
 
@@ -190,10 +192,7 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
         var modelRenderMeshArray = state.EntityManager.GetSharedComponentManaged<RenderMeshArray>(modelEntity);
         var modelDataArray = Mesh.AcquireReadOnlyMeshData(modelRenderMeshArray.GetMesh(SystemAPI.GetComponent<MaterialMeshInfo>(modelEntity)));
 
-        var meshBlobInfoComponent= state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(modelEntity);
-
-        //Debug.LogWarning("VertexCount:" + meshBlobInfoComponent.vertexCount);
-        //Debug.LogWarning("IndexCount:" + meshBlobInfoComponent.indexCount);
+        var meshBlobInfoComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(modelEntity);
 
         foreach (var chunkRect in chunksRect)
         {
@@ -240,7 +239,7 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
     }
 
     private void CreateModelInChunk (ref SystemState state, int modelId, int chunkIndex, int4 chunkRect, Entity chunkRendererEntity, 
-        MeshBlobInfoComponent meshDataComponent, EntitiesGraphicsSystem entitiesGraphicsSystem, Mesh.MeshDataArray modelDataArray,
+        MeshBlobInfoComponent meshInfoComponent, EntitiesGraphicsSystem entitiesGraphicsSystem, Mesh.MeshDataArray modelDataArray,
         ref NativeArray<NativeList<int>> modelArrayOnTilesToRemove)
     {
         var meshChunkData = state.EntityManager.GetComponentObject<MeshChunkData>(chunkRendererEntity);
@@ -254,9 +253,9 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
 
         var possibleMaxModelCount = mapComponent.ChunkWidth * mapComponent.ChunkWidth;
 
-        chunkData.SetVertexBufferParams(possibleMaxModelCount * meshDataComponent.vertexCount,
-            meshDataComponent.meshInfoBlob.Value.attributes.ToArray());
-        chunkData.SetIndexBufferParams(possibleMaxModelCount * meshDataComponent.indexCount, IndexFormat.UInt32);
+        chunkData.SetVertexBufferParams(possibleMaxModelCount * meshInfoComponent.vertexCount,
+            meshInfoComponent.meshInfoBlob.Value.attributes.ToArray());
+        chunkData.SetIndexBufferParams(possibleMaxModelCount * meshInfoComponent.indexCount, IndexFormat.UInt32);
 
         var createModelInChunkRectJob = new CreateModelInChunkRectJob
         {
@@ -270,9 +269,8 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
             MapTileDimension = mapComponent.TileDimension,
             MaxDepth = mapComponent.MaxDepth,
             MapTileWidth = mapComponent.TileWidth,
-            VertexCount = meshDataComponent.vertexCount,
-            IndexCount = meshDataComponent.indexCount,
-            VertexAttributeDimension = meshDataComponent.vertexAttributeDimension,
+            VertexCount = meshInfoComponent.vertexCount,
+            IndexCount = meshInfoComponent.indexCount,
             MeshModelData = modelDataArray[0],
             MeshChunkData = chunkData,
             ModelArrayOnTilesToRemove = modelArrayOnTilesToRemove
@@ -280,7 +278,7 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
 
         createModelInChunkRectJob.Schedule(state.Dependency).Complete();
 
-        UpdateMesh(ref state, entitiesGraphicsSystem, chunkRendererEntity, materialMeshInfoComponent, meshDataComponent, chunkDataArray,
+        UpdateMesh(ref state, entitiesGraphicsSystem, chunkRendererEntity, materialMeshInfoComponent, meshInfoComponent, chunkDataArray,
             chunkMesh, meshChunkData.mapping.Count);
     }
 
@@ -402,9 +400,6 @@ public partial struct CreateModelInChunkRectJob : IJob
     public int IndexCount;
 
     [ReadOnly]
-    public int VertexAttributeDimension;
-
-    [ReadOnly]
     public Mesh.MeshData MeshModelData;
 
     [WriteOnly]
@@ -430,7 +425,7 @@ public partial struct CreateModelInChunkRectJob : IJob
         var currentVertexCount = currentModelCount * VertexCount;
         var currentIndexCount = currentModelCount * IndexCount;
 
-        var vIndex = currentModelCount * VertexCount * VertexAttributeDimension;
+        var vIndex = currentModelCount * modelVerticeArray.Length;
         var tIndex = currentIndexCount;
         var tValue = (uint)currentVertexCount;
 
@@ -472,7 +467,7 @@ public partial struct CreateModelInChunkRectJob : IJob
                         continue;
                     }
 
-                    CreateModel(tileIndex, currentModelCount, modelWorldPosition, modelVerticeArray, modelIndexArray,
+                    CreateModel(tileIndex, currentModelCount, modelWorldPosition, VertexCount, modelVerticeArray, modelIndexArray, 
                         ref verticeArray, ref indexArray, ref vIndex, ref tIndex, ref tValue);
 
                     currentModelCount++;
@@ -482,10 +477,12 @@ public partial struct CreateModelInChunkRectJob : IJob
     }
 
     [BurstCompile]
-    private void CreateModel (int modelIndex, int modelCount, float3 modelWorldPosition, NativeArray<float> modelVertexArray,
+    private void CreateModel (int modelIndex, int modelCount, float3 modelWorldPosition, int modelVertexCount, NativeArray<float> modelVertexArray,
         NativeArray<uint> modelIndexArray, ref NativeArray<float> verticeArray, ref NativeArray<uint> indexArray, 
         ref int vIndex, ref int tIndex, ref uint tValue)
     {
+        var vertexPositionOffset = (modelVertexArray.Length / modelVertexCount);
+
         for (int v = 0, vIdx = 0; v < VertexCount; v++)
         {
             // Position
@@ -493,20 +490,10 @@ public partial struct CreateModelInChunkRectJob : IJob
             verticeArray[vIndex++] = modelVertexArray[vIdx++] + modelWorldPosition.y;
             verticeArray[vIndex++] = modelVertexArray[vIdx++] + modelWorldPosition.z;
 
-            // Normal
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
-
-            // Tangent
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
-
-            // UV
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
-            verticeArray[vIndex++] = modelVertexArray[vIdx++];
+            for (int i = 0; i < (vertexPositionOffset - 3); i++)
+            {
+                verticeArray[vIndex++] = modelVertexArray[vIdx++];
+            }
         }
 
         for (int t = 0; t < IndexCount; t++)
@@ -546,7 +533,7 @@ public partial struct RemoveModelInChunkJob : IJob
     public int VertexCount;
 
     [ReadOnly]
-    public int VertexAttributeDimension;
+    public int StartModelCount;
 
     [WriteOnly]
     [NativeDisableContainerSafetyRestriction]
@@ -557,6 +544,7 @@ public partial struct RemoveModelInChunkJob : IJob
     public void Execute ()
     {
         var verticeArray = MeshChunkData.GetVertexData<float>();
+        var vertexModelDataLength = verticeArray.Length / StartModelCount;
 
         for (int i = 0; i < ModelTilesToRemove.Length; i++)
         {
@@ -564,7 +552,7 @@ public partial struct RemoveModelInChunkJob : IJob
 
             if (Mapping.TryGetValue(modelIndex, out var modelId))
             {
-                var vIndex = modelId * VertexCount * VertexAttributeDimension;
+                var vIndex = modelId * vertexModelDataLength;
 
                 var lastModelId = Mapping.Count - 1;
 
@@ -573,33 +561,15 @@ public partial struct RemoveModelInChunkJob : IJob
                     //Debug.LogError("Consistency failed logic");
                 }
 
-                var vLastIndex = lastModelId * VertexCount * VertexAttributeDimension;
+                var vLastIndex = lastModelId * vertexModelDataLength;
 
                 Mapping.Remove(modelIndex);
                 InvMapping.Remove(modelId);
 
                 if (modelId != lastModelId)
                 {
-                    for (int v = 0; v < VertexCount; v++)
+                    for (int v = 0; v < vertexModelDataLength; v++)
                     {
-                        // Position
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-
-                        // Normal
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-
-                        // Tangent
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
-
-                        // UV
-                        verticeArray[vIndex++] = verticeArray[vLastIndex++];
                         verticeArray[vIndex++] = verticeArray[vLastIndex++];
                     }
 

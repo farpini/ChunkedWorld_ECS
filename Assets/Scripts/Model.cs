@@ -3,9 +3,9 @@
  * https://github.com/farpini/ProceduralTileChunkedMap_ECS
  */
 
-using System.Collections;
 using UnityEngine;
 
+[RequireComponent(typeof(MeshFilter))]
 public class Model : MonoBehaviour
 {
     [SerializeField] private MeshFilter meshFilter;

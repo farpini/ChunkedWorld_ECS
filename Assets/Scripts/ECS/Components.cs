@@ -8,7 +8,6 @@ using System;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
 using UnityEngine.Rendering;
 
 public struct ControllerComponent : IComponentData
@@ -47,6 +46,10 @@ public struct TerrainComponent : IComponentData
 {
 }
 
+public struct ChunkedModelComponent : IComponentData
+{
+}
+
 public struct MapComponent : IComponentData
 {
     public int2 TileDimension;
@@ -60,7 +63,9 @@ public struct MapComponent : IComponentData
     public float2 UnitDimension => new float2(TileDimension.x, TileDimension.y) * TileWidth;
     public bool Validate => (ChunkWidth != 0 && (TileDimension.x % ChunkWidth == 0) && (TileDimension.y % ChunkWidth == 0));
     public int MaxLevel => (MaxHeight + MaxDepth);
+    public int TileCount => TileDimension.x * TileDimension.y;
     public int2 ChunkDimension => new int2(TileDimension / ChunkWidth);
+    public int ChunkCount => ChunkDimension.x * ChunkDimension.y;
 
     public int GetTileIndexFromTilePosition (int2 tilePosition)
     {
@@ -163,8 +168,6 @@ public enum ControllerState
 
 public struct RendererPrefabEntities : IComponentData
 {
-    public Entity chunkModelRenderer;
-    public Entity chunkTileRenderer;
     public Entity tilePrefab;
 }
 

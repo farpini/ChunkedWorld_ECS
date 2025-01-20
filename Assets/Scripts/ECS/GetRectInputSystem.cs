@@ -269,13 +269,13 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
         }
 
         float3 rhs = math.cross(-ray.direction, vector3);
-        float num3 = Vector3.Dot(vector, rhs);
+        float num3 = math.dot(vector, rhs);
         if (num3 < 0f || num3 > num)
         {
             return false;
         }
 
-        float num4 = 0f - Vector3.Dot(lhs, rhs);
+        float num4 = 0f - math.dot(lhs, rhs);
         if (num4 < 0f || num3 + num4 > num)
         {
             return false;

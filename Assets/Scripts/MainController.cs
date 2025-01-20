@@ -88,6 +88,7 @@ public class MainController : MonoBehaviour
             typeof(ControllerComponent),
             typeof(MapComponent),
             typeof(MapTileComponent), 
+            typeof(ChunkRendererEntityBuffer),
             typeof(RectChunkEntityBuffer),
             typeof(RefGameObject));
 

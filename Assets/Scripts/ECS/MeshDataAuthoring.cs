@@ -13,8 +13,6 @@ using BlobHashMaps;
 
 public class MeshDataAuthoring : MonoBehaviour
 {
-    public GameObject chunkModelRendererPrefab;
-    public GameObject chunkTileRendererPrefab;
     public GameObject tilePrefab;
     public Model[] modelArray;
 
@@ -26,8 +24,6 @@ public class MeshDataAuthoring : MonoBehaviour
 
             AddComponent(meshDataMappingEntity, new RendererPrefabEntities
             {
-                chunkModelRenderer = GetEntity(authoring.chunkModelRendererPrefab, TransformUsageFlags.Dynamic),
-                chunkTileRenderer = GetEntity(authoring.chunkTileRendererPrefab, TransformUsageFlags.Dynamic),
                 tilePrefab = GetEntity(authoring.tilePrefab, TransformUsageFlags.Dynamic)
             });
 
@@ -110,18 +106,16 @@ public class ModelBaker : Baker<Model>
             vertexAttributeDimension = vertexAttributeDimension
         });
 
-        //AddComponent(entity, new ModelDataComponent { modelId = -1 });
-
-        AddBuffer<ChunkRendererEntityBuffer>(entity);
+        AddComponent<ChunkedModelComponent>(entity);
 
         mesh.Dispose();
         blobBuilder.Dispose();
     }
 }
 
-public class MapTileBaker : Baker<MapTile>
+public class MapTileBaker : Baker<MapTerrain>
 {
-    public override void Bake (MapTile authoring)
+    public override void Bake (MapTerrain authoring)
     {
         var entity = GetEntity(authoring, TransformUsageFlags.None);
 

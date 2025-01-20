@@ -14,7 +14,7 @@ using UnityEngine.Rendering;
 using Unity.Collections.LowLevel.Unsafe;
 
 [UpdateAfter(typeof(GenerateTerrainSystem))]
-public partial struct UpdateTerrainSystem : ISystem, ISystemStartStop
+public partial struct UpdateTerrainSystem : ISystem
 {
     private MapComponent mapComponent;
 
@@ -30,14 +30,6 @@ public partial struct UpdateTerrainSystem : ISystem, ISystemStartStop
     {
     }
 
-    public void OnStartRunning (ref SystemState state)
-    {
-    }
-
-    public void OnStopRunning (ref SystemState state)
-    {
-    }
-
     public void OnUpdate (ref SystemState state)
     {
         var controllerData = SystemAPI.GetSingletonRW<ControllerComponent>();
@@ -48,17 +40,26 @@ public partial struct UpdateTerrainSystem : ISystem, ISystemStartStop
         }
 
         mapComponent = SystemAPI.GetSingleton<MapComponent>();
+
         var mapTileComponent = SystemAPI.GetSingletonRW<MapTileComponent>();
-        var mapTiles = mapTileComponent.ValueRW.TileData;
-        var heigthMap = mapTileComponent.ValueRW.TileHeightMap;
 
         var terrainEntity = SystemAPI.GetSingleton<RendererPrefabEntities>().tilePrefab;
+
+        UpdateTerrain(ref state, mapTileComponent, terrainEntity);
+        UpdateBorderingGround(ref state, mapTileComponent, terrainEntity);
+
+        controllerData.ValueRW.State = ControllerState.None;
+    }
+
+    [BurstCompile]
+    private void UpdateTerrain (ref SystemState state, RefRW<MapTileComponent> mapTileComponent, Entity terrainEntity)
+    {
+        var mapEntity = SystemAPI.GetSingletonEntity<MapComponent>();
+        var terrainChunkRendererBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(mapEntity);
 
         var meshBlobInfoComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(terrainEntity);
         var meshBlobDataComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobDataComponent>(terrainEntity);
         var meshBlobTerrainTileMappingComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobTileTerrainMappingComponent>(terrainEntity);
-
-        var rendererChunkBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(terrainEntity);
 
         var entitiesGraphicsSystem = state.World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 
@@ -84,8 +85,8 @@ public partial struct UpdateTerrainSystem : ISystem, ISystemStartStop
 
                 var updateTerrainInChunkRectJob = new UpdateTerrainInChunkRectJob
                 {
-                    MapTiles = mapTiles,
-                    MapHeights = heigthMap,
+                    MapTiles = mapTileComponent.ValueRW.TileData,
+                    MapHeights = mapTileComponent.ValueRW.TileHeightMap,
                     MaxLevel = mapComponent.MaxLevel,
                     MapHeightMaxMinValue = mapTileComponent.ValueRO.MapHeightMaxMinValue,
                     MapHeightTileTypeMapping = meshBlobTerrainTileMappingComponent,
@@ -100,7 +101,7 @@ public partial struct UpdateTerrainSystem : ISystem, ISystemStartStop
 
                 updateTerrainInChunkRectJob.Schedule(state.Dependency).Complete();
 
-                var rendererChunkEntity = rendererChunkBuffer[chunkIndex];
+                var rendererChunkEntity = terrainChunkRendererBuffer[chunkIndex].Value;
 
                 var materialMeshInfoComponent = SystemAPI.GetComponentRW<MaterialMeshInfo>(rendererChunkEntity);
                 materialMeshInfoComponent.ValueRW.Mesh = 0;
@@ -109,31 +110,6 @@ public partial struct UpdateTerrainSystem : ISystem, ISystemStartStop
                     chunkDataArray, chunkMesh, chunkTileCount);
             }
         }
-
-        var groundMesh = new Mesh();
-        var groundMeshArray = Mesh.AllocateWritableMeshData(groundMesh);
-        var groundData = groundMeshArray[0];
-
-        var quadsCount = (mapComponent.TileDimension.x * 2) + (mapComponent.TileDimension.y * 2);
-        var vertexCount = quadsCount * 4;
-        var indexCount = quadsCount * 6;
-
-        groundData.SetVertexBufferParams(vertexCount, meshBlobInfoComponent.meshInfoBlob.Value.attributes.ToArray());
-        groundData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
-
-        CreateBorderingGround(groundData, mapTileComponent.ValueRO.MapHeightMaxMinValue, ref heigthMap);
-
-        groundData.subMeshCount = 1;
-        groundData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
-
-        Mesh.ApplyAndDisposeWritableMeshData(groundMeshArray, groundMesh, MeshUpdateFlags.Default);
-
-        groundMesh.RecalculateNormals();
-        groundMesh.RecalculateBounds();
-
-        SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().Map.SetMeshMap(groundMesh, mapComponent);
-
-        controllerData.ValueRW.State = ControllerState.None;
     }
 
     [BurstCompile]
@@ -165,6 +141,34 @@ public partial struct UpdateTerrainSystem : ISystem, ISystemStartStop
         SystemAPI.GetComponentRW<RenderBounds>(rendererEntity).ValueRW.Value = mesh.bounds.ToAABB();
 
         materialMeshInfoComponent.ValueRW.MeshID = entitiesGraphicsSystem.RegisterMesh(mesh);
+    }
+
+    private void UpdateBorderingGround (ref SystemState state, RefRW<MapTileComponent> mapTileComponent, Entity terrainEntity)
+    {
+        var meshBlobInfoComponent = state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(terrainEntity);
+
+        var groundMesh = new Mesh();
+        var groundMeshArray = Mesh.AllocateWritableMeshData(groundMesh);
+        var groundData = groundMeshArray[0];
+
+        var quadsCount = (mapComponent.TileDimension.x * 2) + (mapComponent.TileDimension.y * 2);
+        var vertexCount = quadsCount * 4;
+        var indexCount = quadsCount * 6;
+
+        groundData.SetVertexBufferParams(vertexCount, meshBlobInfoComponent.meshInfoBlob.Value.attributes.ToArray());
+        groundData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
+
+        CreateBorderingGround(groundData, mapTileComponent.ValueRO.MapHeightMaxMinValue, ref mapTileComponent.ValueRW.TileHeightMap);
+
+        groundData.subMeshCount = 1;
+        groundData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
+
+        Mesh.ApplyAndDisposeWritableMeshData(groundMeshArray, groundMesh, MeshUpdateFlags.Default);
+
+        groundMesh.RecalculateNormals();
+        groundMesh.RecalculateBounds();
+
+        SystemAPI.ManagedAPI.GetSingleton<RefGameObject>().Map.SetMeshMap(groundMesh, mapComponent);
     }
 
     [BurstCompile]
@@ -227,21 +231,6 @@ public partial struct UpdateTerrainSystem : ISystem, ISystemStartStop
         indexArray[tIndex++] = tValue;
         indexArray[tIndex++] = tValue + 3;
         indexArray[tIndex++] = tValue + 2;
-    }
-
-    [BurstCompile]
-    private int GetHeightNormalized (float heightValue, int maxLevel, float2 heightMaxMinValue)
-    {
-        heightValue = math.unlerp(heightMaxMinValue.x, heightMaxMinValue.y, heightValue) * maxLevel;
-        if (heightValue >= maxLevel)
-        {
-            heightValue = maxLevel - 1;
-        }
-        if (heightValue < 0f)
-        {
-            heightValue = 0;
-        }
-        return (int)math.floor(heightValue);
     }
 }
 

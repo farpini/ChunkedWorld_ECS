@@ -99,9 +99,12 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
             modelArrayOnTilesToRemove[i] = new NativeList<int>(chunkTileCount, Allocator.Persistent);
         }
 
+        var terrainChunkedRenderersBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(SystemAPI.GetSingletonEntity<MapComponent>());
+
         foreach (var chunkRect in chunksRect)
         {
             var chunkIndex = mapComponent.GetChunkIndexFromChunkPosition(chunkRect.chunkPosition);
+            var chunkedModelRendererBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(terrainChunkedRenderersBuffer[chunkIndex].Value);
 
             var getModelArrayOnTileToRemoveJob = new GetModelArrayOnTileToRemoveJob
             {
@@ -121,13 +124,11 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
                 {
                     var modelId = i;
                     var modelEntity = modelDataEntityBuffer[modelId].Value;
-                    var chunkRendererBufferEntity = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(modelEntity);
-                    var chunkRendererEntity = chunkRendererBufferEntity[chunkIndex];
+                    var chunkedModelRendererEntity = chunkedModelRendererBuffer[modelId].Value;
 
-                    //var meshBlobInfoComponent = SystemAPI.GetComponent<MeshBlobInfoComponent>(modelEntity);
                     var meshBloblInfoComponent_ToRemove = state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(modelEntity);
 
-                    RemoveModelInChunk(ref state, i, modelArrayOnTilesToRemove[i].AsArray(), chunkRendererEntity, meshBloblInfoComponent_ToRemove,
+                    RemoveModelInChunk(ref state, modelArrayOnTilesToRemove[i].AsArray(), chunkedModelRendererEntity, meshBloblInfoComponent_ToRemove,
                         entitiesGraphicsSystem);
                 }
 
@@ -142,12 +143,12 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
         modelArrayOnTilesToRemove.Dispose();
     }
 
-    private void RemoveModelInChunk (ref SystemState state, int modelId, NativeArray<int> tilesToRemove, Entity chunkRendererEntity,
+    private void RemoveModelInChunk (ref SystemState state, NativeArray<int> tilesToRemove, Entity chunkedModelRendererEntity,
         MeshBlobInfoComponent meshDataComponent, EntitiesGraphicsSystem entitiesGraphicsSystem)
     {
-        var meshChunkData = state.EntityManager.GetComponentObject<MeshChunkData>(chunkRendererEntity);
+        var meshChunkData = state.EntityManager.GetComponentObject<MeshChunkData>(chunkedModelRendererEntity);
 
-        var materialMeshInfoComponent = SystemAPI.GetComponentRW<MaterialMeshInfo>(chunkRendererEntity);
+        var materialMeshInfoComponent = SystemAPI.GetComponentRW<MaterialMeshInfo>(chunkedModelRendererEntity);
         var chunkMeshId = materialMeshInfoComponent.ValueRO.MeshID;
 
         var chunkMesh = chunkMeshId.value > 0 ? entitiesGraphicsSystem.GetMesh(chunkMeshId) : new Mesh();
@@ -166,7 +167,7 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
 
         removeModelInChunkJob.Schedule(state.Dependency).Complete();
 
-        UpdateMesh(ref state, entitiesGraphicsSystem, chunkRendererEntity, materialMeshInfoComponent, meshDataComponent, chunkDataArray,
+        UpdateMesh(ref state, entitiesGraphicsSystem, chunkedModelRendererEntity, materialMeshInfoComponent, meshDataComponent, chunkDataArray,
             chunkMesh, meshChunkData.mapping.Count);
     }
 
@@ -184,12 +185,11 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
         }
 
         var modelEntity = modelDataEntityBuffer[modelId].Value;
-        var chunkRendererBufferEntity = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(modelEntity);
+        var terrainChunkedRenderersBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(SystemAPI.GetSingletonEntity<MapComponent>());
 
         var modelRenderMeshArray = state.EntityManager.GetSharedComponentManaged<RenderMeshArray>(modelEntity);
         var modelDataArray = Mesh.AcquireReadOnlyMeshData(modelRenderMeshArray.GetMesh(SystemAPI.GetComponent<MaterialMeshInfo>(modelEntity)));
 
-        //var meshBlobInfoComponent = SystemAPI.GetComponent<MeshBlobInfoComponent>(modelEntity);
         var meshBlobInfoComponent= state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(modelEntity);
 
         //Debug.LogWarning("VertexCount:" + meshBlobInfoComponent.vertexCount);
@@ -198,16 +198,17 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
         foreach (var chunkRect in chunksRect)
         {
             var chunkIndex = mapComponent.GetChunkIndexFromChunkPosition(chunkRect.chunkPosition);
-            var chunkRendererEntity = chunkRendererBufferEntity[chunkIndex].Value;
+            var chunkedModelRendererBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(terrainChunkedRenderersBuffer[chunkIndex].Value);
+            var chunkedModelRendererEntity = chunkedModelRendererBuffer[modelId].Value;
 
-            if (chunkRendererEntity == Entity.Null)
+            if (chunkedModelRendererEntity == Entity.Null)
             {
                 var modelName = meshBlobInfoComponent.meshInfoBlob.Value.meshName.BlobCharToString();
                 Debug.LogWarning("Its null " + chunkIndex + " " + modelName);
                 continue;
             }
 
-            CreateModelInChunk(ref state, modelId, chunkIndex, chunkRect.chunkRect, chunkRendererEntity, meshBlobInfoComponent, 
+            CreateModelInChunk(ref state, modelId, chunkIndex, chunkRect.chunkRect, chunkedModelRendererEntity, meshBlobInfoComponent, 
                 entitiesGraphicsSystem, modelDataArray, ref modelArrayOnTilesToRemove);
 
             for (int i = 0; i < modelArrayOnTilesToRemove.Length; i++)
@@ -216,13 +217,12 @@ public partial struct UpdateChunkedModelSystem : ISystem, ISystemStartStop
                 {
                     var modelId_ToRemove = i;
                     var modelEntity_ToRemove = modelDataEntityBuffer[modelId_ToRemove].Value;
-                    var chunkRendererBufferEntity_ToRemove = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(modelEntity_ToRemove);
-                    var chunkRendererEntity_ToRemove = chunkRendererBufferEntity_ToRemove[chunkIndex];
 
-                    //var meshDataComponent_ToRemove = SystemAPI.GetComponent<MeshBlobInfoComponent>(modelEntity_ToRemove);
+                    var chunkedModelRendererEntity_ToRemove = chunkedModelRendererBuffer[modelId_ToRemove].Value;
+
                     var meshBloblInfoComponent_ToRemove = state.EntityManager.GetSharedComponentManaged<MeshBlobInfoComponent>(modelEntity_ToRemove);
 
-                    RemoveModelInChunk(ref state, modelId_ToRemove, modelArrayOnTilesToRemove[i].AsArray(), chunkRendererEntity_ToRemove,
+                    RemoveModelInChunk(ref state, modelArrayOnTilesToRemove[i].AsArray(), chunkedModelRendererEntity_ToRemove,
                         meshBloblInfoComponent_ToRemove, entitiesGraphicsSystem);
                 }
 

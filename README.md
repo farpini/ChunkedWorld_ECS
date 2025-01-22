@@ -15,7 +15,7 @@ Models can be added to the map and are rendered by chunks with a custom method o
 ![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/Chunk.gif)<br /><br /></p>
 Adding new models:<br />
 New models can be added to the project. You just need to create a prefab with Model Component Script and add it to the MeshDataAuthoring model array.
-Make sure that the model mesh index format is set to 32 bits. The model should be appear in the Chunked Model UI Selection.
+Make sure that the model mesh index format is set to 32 bits and Read/Write option is enabled. The model should be appear in the Chunked Model UI Selection.
 <br /><br />
 ![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/AddPrefab.JPG)<br /><br />
 ![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/Indexformat.JPG)

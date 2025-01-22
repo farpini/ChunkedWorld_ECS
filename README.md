@@ -18,5 +18,5 @@ New models can be added to the project. You just need to create a prefab with Mo
 Make sure that the model mesh index format is set to 32 bits and Read/Write option is enabled. The model should be appear in the Chunked Model UI Selection.
 <br /><br />
 ![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/AddPrefab.JPG)<br /><br />
-![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/Indexformat.JPG)
+![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/MeshSettings.JPG)
 

@@ -151,9 +151,9 @@ public partial struct GetRectInputSystem : ISystem, ISystemStartStop
             intersectPointOnPlaneZero = currentRay.GetPoint(distance);
         }
 
-        var mapPlaneMaxHeight = new Plane(Vector3.up, new Vector3(0f, mapComponent.MaxHeight * mapComponent.TileWidth, 0f));
+        var mapPlaneMaxLevel = new Plane(Vector3.up, new Vector3(0f, mapComponent.MaxLevel * mapComponent.TileWidth, 0f));
 
-        if (mapPlaneMaxHeight.Raycast(currentRay, out distance))
+        if (mapPlaneMaxLevel.Raycast(currentRay, out distance))
         {
             intersectPointOnPlaneMaxHeight = currentRay.GetPoint(distance);
         }

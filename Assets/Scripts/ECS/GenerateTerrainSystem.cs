@@ -111,83 +111,12 @@ public partial struct GenerateTerrainSystem : ISystem, ISystemStartStop
 
         var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-        //CreateTerrainChunkRenderers(ref state, ecb);
         CreateTerrain(ref state, ecb, controllerData.ValueRO.ModelCount);
-        //SetupRenderingModels(ref state, ecb);
         GenerateTerrain(ref state);
 
         controllerData.ValueRW.State = ControllerState.UpdateTerrain;
-        //controllerData.ValueRW.State = ControllerState.None;
 
         ecb.Playback(state.EntityManager);
-    }
-
-    private void CreateTerrainChunkRenderers (ref SystemState state, EntityCommandBuffer ecb)
-    {
-        var currentMapSize = currentMapComponent.TileDimension.x;
-        currentMapComponent = SystemAPI.GetSingleton<MapComponent>();
-
-        var rendererPrefabEntities = SystemAPI.GetSingleton<RendererPrefabEntities>();
-        //var terrainChunkEntityBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(rendererPrefabEntities.tilePrefab);
-
-        var mapTileComponent = SystemAPI.GetSingletonRW<MapTileComponent>();
-        mapTileComponent.ValueRW.Dispose();
-        mapTileComponent.ValueRW.TileData = new NativeArray<TileData>(
-            currentMapComponent.TileDimension.x * currentMapComponent.TileDimension.y, Allocator.Persistent);
-        mapTileComponent.ValueRW.TileHeightMap = new NativeArray<float>(
-            (currentMapComponent.TileDimension.x + 1) * (currentMapComponent.TileDimension.y + 1), Allocator.Persistent);
-
-        // it needs to dispose MeshChunkData...
-        var chunkModelQuery = state.EntityManager.CreateEntityQuery(typeof(MeshChunkData));
-        var chunkModelEntities = chunkModelQuery.ToEntityArray(Allocator.Temp);
-        var chunkModelMeshData = chunkModelQuery.ToComponentArray<MeshChunkData>();
-        for (int i = 0; i < chunkModelMeshData.Length; i++)
-        {
-            chunkModelMeshData[i].Dispose();
-        }
-
-        ecb.DestroyEntity(chunkModelEntities);
-
-        
-
-
-        // destroy individual renderers
-        // HERE...
-        // .....
-
-        // create/destroy the chunk terrain renderers only if mapsize changed of it is the first generation
-        //if (currentMapSize == currentMapComponent.TileDimension.x && terrainChunkEntityBuffer.Length > 0)
-        //{
-        //    return;
-        //}
-
-        // destroy the chunk terrain renderers
-        //if (terrainChunkEntityBuffer.Length > 0)
-        //{
-            // destroy the chunk terrain renderers
-        //    var chunkRendererEntites = new NativeArray<Entity>(terrainChunkEntityBuffer.AsNativeArray().Reinterpret<Entity>(), Allocator.Temp);
-        //    terrainChunkEntityBuffer.Clear();
-        //    ecb.DestroyEntity(chunkRendererEntites);
-        //}
-
-        //var chunkDimension = currentMapComponent.ChunkDimension;
-
-        //var chunkRendererEntities = state.EntityManager.Instantiate(rendererPrefabEntities.chunkTileRenderer,
-        //    chunkDimension.x * chunkDimension.y, Allocator.Temp);
-
-        //var chunkIndex = 0;
-
-        // create the chunk terrain renderers
-        /*
-        for (int i = 0; i < chunkDimension.x; i++)
-        {
-            for (int j = 0; j < chunkDimension.y; j++)
-            {
-                state.EntityManager.SetName(chunkRendererEntities[chunkIndex], "Terrain[" + i + "][" + j + "]");
-                terrainChunkEntityBuffer.Add(new ChunkRendererEntityBuffer { Value = chunkRendererEntities[chunkIndex++] });
-            }
-        }
-        */
     }
 
     [BurstCompile]

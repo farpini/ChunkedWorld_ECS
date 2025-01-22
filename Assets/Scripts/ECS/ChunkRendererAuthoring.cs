@@ -15,8 +15,6 @@ public class ChunkRendererAuthoring : MonoBehaviour
         public override void Bake (ChunkRendererAuthoring authoring)
         {
             var entity = GetEntity(TransformUsageFlags.Dynamic);
-
-            //AddComponent<DisableRendering>(entity);
         }
     }
 }

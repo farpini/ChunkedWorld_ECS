@@ -64,9 +64,6 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
         {
             mapComponent = SystemAPI.GetSingleton<MapComponent>();
 
-            //var modelEntity = chunkedModelDataEntityBuffer[modelId].Value;
-            //var chunkRendererEntityBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(modelEntity);
-
             var terrainChunkedRenderersBuffer = SystemAPI.GetBuffer<ChunkRendererEntityBuffer>(SystemAPI.GetSingletonEntity<MapComponent>());
 
             var rect = controllerData.ValueRO.Rect;
@@ -74,9 +71,6 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
             chunkRendererIndexesToInstantiateChunkedModelRenderers.Clear();
 
             var selectedRectangle = new Rectangle(rect.x, rect.y, rect.z, rect.w);
-
-                //(controllerData.ValueRO.State == ControllerState.ChunkedModelSelectPlacement || controllerData.ValueRO.State == ControllerState.ChunkedModelRemove) ?
-                //new Rectangle(rect.x, rect.y, rect.z, rect.w) : new Rectangle(rect.x - 1, rect.y - 1, rect.z + 2, rect.w + 2);
 
             for (int i = 0; i < mapComponent.ChunkDimension.x; i++)
             {
@@ -92,8 +86,6 @@ public partial struct GetChunksFromRectSystem : ISystem, ISystemStartStop
                     {
                         if (resultRectangle.Width > 0 && resultRectangle.Height > 0)
                         {
-                            //controllerData.ValueRW.HasRect = true;
-
                             rectBuffer.Add(new RectChunkEntityBuffer
                             {
                                 Value = new RectChunkData

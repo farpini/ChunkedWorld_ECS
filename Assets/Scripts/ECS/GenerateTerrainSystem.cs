@@ -37,7 +37,10 @@ public partial struct GenerateTerrainSystem : ISystem, ISystemStartStop
 
     public void OnStartRunning (ref SystemState state)
     {
-        seedRandom = new Random(34543);
+        System.DateTime epochStart = new System.DateTime(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Utc);
+        uint cur_time = (uint)(System.DateTime.UtcNow - epochStart).TotalSeconds;
+
+        seedRandom = new Random(cur_time);
 
         terrainChunkRendererQuery = state.EntityManager.CreateEntityQuery(typeof(TerrainComponent));
         terrainChunkedModelRendererQuery = state.EntityManager.CreateEntityQuery(typeof(ChunkedModelComponent), typeof(MeshChunkData));

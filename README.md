@@ -1,8 +1,8 @@
 # PROCEDURAL TILE CHUNKED MAP - ECS
 ----------------------------------------------
 ![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/TitleImage.JPG)<br />
-This is a tile map procedural generator. It was developed using the ECS architecture and use of burst compiler for high-performance.
-Models can be placed on the map and are rendered by chunks with a custom method of combining meshes (like what GPU instancing does).
+This is a tile map procedural generator. It was developed using the ECS architecture and use of burst compiler for high-performance.<br />
+Models can be placed on the map and are rendered by chunks with a custom method of combining meshes (like what GPU instancing does).<br />
 It uses a diamond-square algorithm to generate terrains.
 <br /><br />Features:
 <br />-> Map size of 2^n (can be modified for larger sizes);

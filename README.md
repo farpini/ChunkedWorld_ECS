@@ -18,7 +18,6 @@ Adding new models:<br />
 New models can be added to the project. You just need to create a prefab with Model Component Script and add it to the MeshDataAuthoring model array.
 Make sure that the model mesh index format is set to 32 bits and Read/Write option is enabled. The model should be appear in the Chunked Model UI Selection.<br /><br />
 
-![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/AddPrefab.JPG)<br /><br />
 ![](https://github.com/farpini/ProceduralTileChunkedMap_ECS/blob/main/MeshSettings.JPG)<br /><br />
 ----------------------------------------------
 Assets: (thanks to)

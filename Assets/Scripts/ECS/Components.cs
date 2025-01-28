@@ -200,6 +200,7 @@ public class MeshChunkData : IComponentData, IDisposable
     public void Dispose ()
     {
         if (mapping.IsCreated) mapping.Dispose();
+        if (invMapping.IsCreated) invMapping.Dispose();
     }
 }
 
